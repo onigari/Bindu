@@ -14,8 +14,9 @@ def plot_channel_histograms(channels: dict, title: str = "Channel Histograms", a
     channels: dict like {'R': arr, 'G': arr, 'B': arr} from split_channels().
     """
     colors = {"R": "red", "G": "green", "B": "blue"}
-    created_fig = ax is None
-    if created_fig:
+    fig = None
+    
+    if ax is None:
         fig, ax = plt.subplots(figsize=(7, 4))
 
     for name, channel in channels.items():
@@ -28,9 +29,10 @@ def plot_channel_histograms(channels: dict, title: str = "Channel Histograms", a
     ax.set_title(title)
     ax.legend()
 
-    if created_fig:
+    if fig is not None:
         fig.tight_layout()
         return fig
+    
     return ax
 
 

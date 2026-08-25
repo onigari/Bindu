@@ -4,11 +4,11 @@ import numpy as np
 
 def load_image_rgb(path: str) -> np.ndarray:
     """Load an image from disk as float64 RGB, shape (H, W, 3), range [0,255]."""
-    bgr = cv2.imread(path, cv2.IMREAD_COLOR)
+    bgr = cv2.imread(path, cv2.IMREAD_COLOR) # OpenCV reads images in BGR format, not RGB
     if bgr is None:
         raise FileNotFoundError(f"Could not read image at {path}")
     
-    rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+    rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)  # convert BGR to RGB
     return rgb.astype(np.float64)
 
 
