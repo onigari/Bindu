@@ -15,8 +15,8 @@ def load_image_rgb(path: str) -> np.ndarray:
 def save_image_rgb(path: str, img: np.ndarray) -> None:
     """Save a float64 RGB image (range [0,255]) to disk."""
     clipped = np.clip(img, 0, 255).astype(np.uint8)
-    bgr = cv2.cvtColor(clipped, cv2.COLOR_RGB2BGR)
-    cv2.imwrite(path, bgr)
+    bgr = cv2.cvtColor(clipped, cv2.COLOR_RGB2BGR)  # reading RGB, but must be saved as BGR
+    cv2.imwrite(path, bgr)                          # otherwise the saved image will be inverted
 
 
 def split_channels(img: np.ndarray) -> dict:
@@ -29,7 +29,7 @@ def split_channels(img: np.ndarray) -> dict:
 
 
 def merge_channels(channels: dict) -> np.ndarray:
-    """Inverse of split_channels: {'R','G','B'} -> H×W×3 RGB image."""
+    """dict {'R','G','B'} -> H x W x 3 RGB image."""
     r, g, b = channels["R"], channels["G"], channels["B"]
     return np.stack([r, g, b], axis=-1)
 
@@ -39,10 +39,10 @@ def channel_as_grayscale_image(channel: np.ndarray) -> np.ndarray:
     return np.clip(channel, 0, 255).astype(np.uint8)
 
 
-def channel_as_color_image(channel: np.ndarray, which: str) -> np.ndarray:
-    """View a single channel 'as if' it were the only color present."""
-    h, w = channel.shape
+def channel_as_color_image(channel_arr: np.ndarray, channel_name: str) -> np.ndarray:
+    """View a single channel as if it were the only color present."""
+    h, w = channel_arr.shape
     out = np.zeros((h, w, 3), dtype=np.uint8)
-    idx = {"R": 0, "G": 1, "B": 2}[which]
-    out[:, :, idx] = np.clip(channel, 0, 255).astype(np.uint8)
+    idx = {"R": 0, "G": 1, "B": 2}[channel_name]
+    out[:, :, idx] = np.clip(channel_arr, 0, 255).astype(np.uint8)
     return out
