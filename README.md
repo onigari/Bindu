@@ -1,7 +1,7 @@
 # Color Channel Analyzer and Image Compressor
 
 TODO:
-- separate an input image into red, green, and blue channels
+- ~~ separate an input image into red, green, and blue channels ~~
 - display and compare the histograms of the separated channels
 - compare the frequency content of the separated channels
 - apply filters (smoothing/sharpening effects) individually on each channel
