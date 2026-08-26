@@ -22,7 +22,7 @@ def compute_combined_histogram(channels: dict, bins: int = 256, value_range=(0, 
     total, edges = compute_histogram(next(channel_iter), bins=bins, value_range=value_range)
     for channel in channel_iter:
         hist, edges = compute_histogram(channel, bins=bins, value_range=value_range)
-        total = total + hist
+        total += hist
     return total, edges
 
 def compute_luminance_histogram(channels: dict, bins: int = 256, value_range=(0, 256)):
