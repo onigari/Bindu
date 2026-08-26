@@ -59,6 +59,7 @@ def main():
         hist, edges = np.histogram(channels[name].ravel(), bins=256, range=(0, 256))
         centers = (edges[:-1] + edges[1:]) / 2
         axes[1, i + 1].plot(centers, hist, color=colors[name])
+        axes[1, i + 1].fill_between(centers, hist, 0, color=colors[name], alpha=0.4)
         axes[1, i + 1].set_title(f"{name} histogram")
         axes[1, i + 1].set_xlabel("Intensity")
 

@@ -30,13 +30,9 @@ def compute_luminance_histogram(channels: dict, bins: int = 256, value_range=(0,
     Calculated using the standard ITU-R BT.601 formula (0.299R + 0.587G + 0.114B).
 
     Different from compute_combined_histogram(): this blends the three
-    channels *per pixel first* into a single brightness value, then
-    histograms that -- i.e. "how bright does each pixel look overall",
-    rather than "total activity across all three channels".
+    channels *per pixel first* into a single brightness value
     """
-    luminance = (
-        0.299 * channels["R"] + 0.587 * channels["G"] + 0.114 * channels["B"]
-    )
+    luminance = 0.299 * channels["R"] + 0.587 * channels["G"] + 0.114 * channels["B"]
     hist, edges = np.histogram(luminance.ravel(), bins=bins, range=value_range)
     return hist, edges
 
@@ -56,7 +52,9 @@ def plot_channel_histograms(channels: dict, title: str = "Channel Histograms", a
     for name, channel in channels.items():
         hist, edges = compute_histogram(channel)
         centers = (edges[:-1] + edges[1:]) / 2
-        ax.plot(centers, hist, color=colors.get(name, "black"), label=name, alpha=0.8)
+        color = colors.get(name, "black")
+        ax.plot(centers, hist, color=color, label=name, alpha=0.8)
+        ax.fill_between(centers, hist, 0, color=color, alpha=0.35)  # if want to fill color up to x-axis
 
     if show_combined:
         total_hist, edges = compute_combined_histogram(channels)
