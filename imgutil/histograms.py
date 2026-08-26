@@ -26,7 +26,8 @@ def compute_combined_histogram(channels: dict, bins: int = 256, value_range=(0, 
     return total, edges
 
 def compute_luminance_histogram(channels: dict, bins: int = 256, value_range=(0, 256)):
-    """Histogram of perceptual luminance (0.299R + 0.587G + 0.114B) per pixel.
+    """Histogram of perceptual luminance per pixel.
+    Calculated using the standard ITU-R BT.601 formula (0.299R + 0.587G + 0.114B).
 
     Different from compute_combined_histogram(): this blends the three
     channels *per pixel first* into a single brightness value, then
@@ -41,8 +42,8 @@ def compute_luminance_histogram(channels: dict, bins: int = 256, value_range=(0,
 
 
 def plot_channel_histograms(channels: dict, title: str = "Channel Histograms", ax=None,
-                             show_combined: bool = True):
-    """Overlay R/G/B histograms on one plot along with their combined histogram.
+                             show_combined: bool = True, show_luminance: bool = False):
+    """Overlay R/G/B histograms on one plot along with their combined and/or luminance histogram.
 
     channels: dict like {'R': arr, 'G': arr, 'B': arr} from split_channels().
     """
@@ -62,7 +63,12 @@ def plot_channel_histograms(channels: dict, title: str = "Channel Histograms", a
         centers = (edges[:-1] + edges[1:]) / 2
         ax.plot(centers, total_hist, color="black", linestyle="--",
                     label="Total", alpha=0.9, linewidth=1.5)
-
+                    
+    if show_luminance:
+        lum_hist, edges = compute_luminance_histogram(channels)
+        centers = (edges[:-1] + edges[1:]) / 2
+        ax.plot(centers, lum_hist, color="gray", linestyle="-.",
+                    label="Luminance", alpha=0.9, linewidth=1.5)
 
     ax.set_xlabel("Pixel intensity")
     ax.set_ylabel("Count")
