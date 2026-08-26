@@ -38,7 +38,7 @@ def compute_luminance_histogram(channels: dict, bins: int = 256, value_range=(0,
 
 
 def plot_channel_histograms(channels: dict, title: str = "Channel Histograms", ax=None,
-                             show_combined: bool = True, show_luminance: bool = False):
+                            fill_axis: bool = True, show_combined: bool = True, show_luminance: bool = False):
     """Overlay R/G/B histograms on one plot along with their combined and/or luminance histogram.
 
     channels: dict like {'R': arr, 'G': arr, 'B': arr} from split_channels().
@@ -54,7 +54,8 @@ def plot_channel_histograms(channels: dict, title: str = "Channel Histograms", a
         centers = (edges[:-1] + edges[1:]) / 2
         color = colors.get(name, "black")
         ax.plot(centers, hist, color=color, label=name, alpha=0.8)
-        ax.fill_between(centers, hist, 0, color=color, alpha=0.35)  # if want to fill color up to x-axis
+        if fill_axis:
+            ax.fill_between(centers, hist, 0, color=color, alpha=0.35)  # if want to fill color up to x-axis
 
     if show_combined:
         total_hist, edges = compute_combined_histogram(channels)
