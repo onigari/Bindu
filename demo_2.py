@@ -1,9 +1,7 @@
 """
-Stage C demo: frequency content of separated channels.
-
-Run: python demo_stage_c.py path/to/image.jpg
+Run: python demo_2.py path/to/image.jpg
 If no path is given, generates the same synthetic test image as
-demo_stage_ab.py for consistency.
+demo_1.py for consistency.
 """
 import os
 import sys
@@ -49,22 +47,41 @@ def main():
         print(f"  {name}: energy={stats['energy']:.3e}  fraction={stats['fraction']:.1%}")
 
     names = ["R", "G", "B"]
-    fig, axes = plt.subplots(2, 3, figsize=(13, 8))
+    fig, axes = plt.subplots(2, 4, figsize=(16, 8))
 
+    # Plot Individual Channels
     for i, name in enumerate(names):
+        # Row 0: Spatial
         axes[0, i].imshow(channel_as_grayscale_image(channels[name]), cmap="gray")
-        axes[0, i].set_title(f"{name} channel (spatial)")
+        axes[0, i].set_title(f"{name} Channel (Spatial)")
         axes[0, i].axis("off")
 
-    for i, name in enumerate(names):
+        # Row 1: Frequency
         fft_result = compute_fft(channels[name])
         spectrum = compute_magnitude_spectrum(fft_result)
         im = axes[1, i].imshow(spectrum, cmap="viridis")
-        axes[1, i].set_title(f"{name} channel (log-magnitude spectrum)")
+        axes[1, i].set_title(f"{name} Spectrum")
         axes[1, i].axis("off")
         fig.colorbar(im, ax=axes[1, i], fraction=0.046, pad=0.04)
 
-    fig.suptitle("Spatial vs. Frequency Content per Channel")
+    # Plot Combined Luminance
+    # Calculate spatial luminance
+    luminance = 0.299 * channels["R"] + 0.587 * channels["G"] + 0.114 * channels["B"]
+    
+    # Row 0: Spatial Luminance
+    axes[0, 3].imshow(luminance, cmap="gray", vmin=0, vmax=255)
+    axes[0, 3].set_title("Combined Luminance (Spatial)")
+    axes[0, 3].axis("off")
+
+    # Row 1: Combined Frequency Spectrum
+    lum_fft = compute_fft(luminance)
+    lum_spectrum = compute_magnitude_spectrum(lum_fft)
+    im_lum = axes[1, 3].imshow(lum_spectrum, cmap="viridis")
+    axes[1, 3].set_title("Combined Spectrum")
+    axes[1, 3].axis("off")
+    fig.colorbar(im_lum, ax=axes[1, 3], fraction=0.046, pad=0.04)
+
+    fig.suptitle("Spatial vs. Frequency Content")
     fig.tight_layout()
 
     out_dir = "out"
