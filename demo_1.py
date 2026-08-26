@@ -7,10 +7,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
-from imgutil.core import (
-    load_image_rgb, split_channels, channel_as_grayscale_image
-)
-from imgutil.histograms import plot_channel_histograms
+from imgutil.core import *
+from imgutil.histograms import *
 
 
 def make_synthetic_test_image(size=256) -> np.ndarray:
@@ -53,7 +51,7 @@ def main():
         axes[0, i + 1].set_title(f"{name} channel")
         axes[0, i + 1].axis("off")
 
-    plot_channel_histograms(channels, title="Combined R/G/B Histogram", ax=axes[1, 0])
+    plot_channel_histograms(channels, title="Combined Histogram", ax=axes[1, 0])
     axes[1, 0].axis("on")
 
     colors = {"R": "red", "G": "green", "B": "blue"}

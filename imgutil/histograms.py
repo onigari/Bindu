@@ -3,13 +3,46 @@ import matplotlib.pyplot as plt
 
 
 def compute_histogram(channel: np.ndarray, bins: int = 256, value_range=(0, 256)):
-    """Compute a histogram for a single 2D channel array."""
+    """Compute a histogram for a single 2D channel array.
+    
+    Returns (hist, bin_edges).
+    """
     hist, bin_edges = np.histogram(channel.ravel(), bins=bins, range=value_range)
     return hist, bin_edges
 
+def compute_combined_histogram(channels: dict, bins: int = 256, value_range=(0, 256)):
+    """Add the R, G, and B histograms bin-by-bin into one total curve.
 
-def plot_channel_histograms(channels: dict, title: str = "Channel Histograms", ax=None):
-    """Overlay R/G/B histograms on one plot for easy comparison.
+    Returns (hist, bin_edges), same shape as compute_histogram().
+    """
+    if not channels:
+        raise ValueError("compute_combined_histogram() got an empty channels dict")
+
+    channel_iter = iter(channels.values())
+    total, edges = compute_histogram(next(channel_iter), bins=bins, value_range=value_range)
+    for channel in channel_iter:
+        hist, edges = compute_histogram(channel, bins=bins, value_range=value_range)
+        total = total + hist
+    return total, edges
+
+def compute_luminance_histogram(channels: dict, bins: int = 256, value_range=(0, 256)):
+    """Histogram of perceptual luminance (0.299R + 0.587G + 0.114B) per pixel.
+
+    Different from compute_combined_histogram(): this blends the three
+    channels *per pixel first* into a single brightness value, then
+    histograms that -- i.e. "how bright does each pixel look overall",
+    rather than "total activity across all three channels".
+    """
+    luminance = (
+        0.299 * channels["R"] + 0.587 * channels["G"] + 0.114 * channels["B"]
+    )
+    hist, edges = np.histogram(luminance.ravel(), bins=bins, range=value_range)
+    return hist, edges
+
+
+def plot_channel_histograms(channels: dict, title: str = "Channel Histograms", ax=None,
+                             show_combined: bool = True):
+    """Overlay R/G/B histograms on one plot along with their combined histogram.
 
     channels: dict like {'R': arr, 'G': arr, 'B': arr} from split_channels().
     """
@@ -24,6 +57,13 @@ def plot_channel_histograms(channels: dict, title: str = "Channel Histograms", a
         centers = (edges[:-1] + edges[1:]) / 2
         ax.plot(centers, hist, color=colors.get(name, "black"), label=name, alpha=0.8)
 
+    if show_combined:
+        total_hist, edges = compute_combined_histogram(channels)
+        centers = (edges[:-1] + edges[1:]) / 2
+        ax.plot(centers, total_hist, color="black", linestyle="--",
+                    label="Total", alpha=0.9, linewidth=1.5)
+
+
     ax.set_xlabel("Pixel intensity")
     ax.set_ylabel("Count")
     ax.set_title(title)
@@ -36,9 +76,8 @@ def plot_channel_histograms(channels: dict, title: str = "Channel Histograms", a
     return ax
 
 
-def plot_histogram_comparison(channels_a: dict, channels_b: dict,
-                               label_a: str = "Image A", label_b: str = "Image B"):
-    """Side-by-side histogram comparison between two images' channel sets."""
+def plot_histogram_comparison(channels_a: dict, channels_b: dict, label_a: str = "Image A", label_b: str = "Image B"):
+    """Side-by-side histogram comparison between the channel sets of two images."""
     fig, axes = plt.subplots(1, 2, figsize=(12, 4), sharey=True)
     plot_channel_histograms(channels_a, title=label_a, ax=axes[0])
     plot_channel_histograms(channels_b, title=label_b, ax=axes[1])
