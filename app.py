@@ -10,6 +10,7 @@ from PIL import Image
 
 from imgutil.core import *
 from imgutil.histograms import *
+from imgutil.frequency import *
 
 
 # ---------------------------------------------------------------------------
@@ -107,7 +108,7 @@ def run_color_channel_analyzer(img: np.ndarray, channels: dict) -> None:
             else:
                 display_img = channel_as_color_image(channels[name], name)
             
-            st.image(display_img, caption=f"{name} channel", use_container_width=True)
+            st.image(display_img, caption=f"{name} channel", width="stretch")
 
     # 2. Generate and render the matplotlib histograms afterwards
     for col, name in zip(cols, names):
@@ -133,6 +134,9 @@ def run_color_channel_analyzer(img: np.ndarray, channels: dict) -> None:
         show_luminance=show_luminance,
     )
     st.pyplot(fig, width="content")
+
+    st.divider()
+
 
 
 TOOL_RUNNERS = {
