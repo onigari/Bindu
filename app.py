@@ -1,70 +1,175 @@
-import streamlit as st
+"""
+Run with:
+    streamlit run app.py
+"""
+import io
+
 import numpy as np
-import matplotlib.pyplot as plt
-from scipy.fft import fft2, ifft2, fftshift, ifftshift
+import streamlit as st
 from PIL import Image
 
-# Page Configuration
-st.set_page_config(page_title="Color Channel Analyzer", layout="wide")
-st.title("Color Channel Analyzer & Frequency Pruning")
+from imgutil.core import *
+from imgutil.histograms import *
 
-# --- SIDEBAR CONTROLS ---
-st.sidebar.header("Processing Controls")
-channel_selection = st.sidebar.selectbox("Select Channel to Analyze", ["Red", "Green", "Blue"])
-prune_percentile = st.sidebar.slider("Harmonic Pruning (Discard Bottom X%)", 0.0, 99.9, 0.0, 0.1)
 
-# --- FILE UPLOADER ---
-uploaded_file = st.file_uploader("Upload an Image", type=["png", "jpg", "jpeg"])
+# ---------------------------------------------------------------------------
+# Synthetic sample images (self-contained -- no bundled asset files needed)
+# ---------------------------------------------------------------------------
 
-if uploaded_file is not None:
-    # 1. Load Image and Convert to NumPy Array
-    image = Image.open(uploaded_file).convert('RGB')
-    img_array = np.array(image)
-    
-    # 2. Separate Channels
-    # Indexing: 0 = Red, 1 = Green, 2 = Blue
-    channel_idx = {"Red": 0, "Green": 1, "Blue": 2}[channel_selection]
-    selected_channel = img_array[:, :, channel_idx]
+def make_gradient_circle_image(size: int = 256) -> np.ndarray:
+    """Same generator used in the demo scripts: RGB gradient plus a white circle."""
+    x = np.linspace(0, 255, size)
+    y = np.linspace(0, 255, size)
+    xx, yy = np.meshgrid(x, y)
+    r = xx
+    g = yy
+    b = 255 - (xx + yy) / 2
+    img = np.stack([r, g, b], axis=-1)
 
-    # --- MATH & PROCESSING ---
-    # 3. Compute 2D DFT
-    dft = fft2(selected_channel)
-    dft_shifted = fftshift(dft)
-    magnitude_spectrum = np.abs(dft_shifted)
-    
-    # 4. Harmonic Energy Pruning
-    # Calculate the threshold value based on the selected percentile
-    threshold_val = np.percentile(magnitude_spectrum, prune_percentile)
-    
-    # Create a mask and apply it to the shifted DFT
-    dft_pruned = np.where(magnitude_spectrum >= threshold_val, dft_shifted, 0)
-    
-    # 5. Inverse Transform for Reconstruction
-    dft_ishift = ifftshift(dft_pruned)
-    reconstructed_channel = np.abs(ifft2(dft_ishift))
+    yy_idx, xx_idx = np.ogrid[:size, :size]
+    circle_mask = (xx_idx - size * 0.7) ** 2 + (yy_idx - size * 0.3) ** 2 < (size * 0.15) ** 2
+    img[circle_mask] = [255, 255, 255]
+    return img.astype(np.float64)
 
-    # --- VISUALIZATION ---
-    col1, col2, col3 = st.columns(3)
 
-    with col1:
-        st.subheader("Original Channel")
-        st.image(selected_channel, cmap="gray", clamp=True)
-        
-    with col2:
-        st.subheader("Frequency Spectrum")
-        # Log scale used for visual clarity of the frequency spectrum
-        log_spectrum = np.log1p(np.abs(dft_pruned))
-        st.image(log_spectrum / np.max(log_spectrum), clamp=True)
-        
-    with col3:
-        st.subheader("Reconstructed Channel")
-        st.image(reconstructed_channel, cmap="gray", clamp=True)
-        
-    # --- HISTOGRAM ---
-    st.subheader(f"Intensity Histogram: {channel_selection} Channel")
-    fig, ax = plt.subplots(figsize=(10, 3))
-    ax.hist(reconstructed_channel.ravel(), bins=256, range=(0, 256), color=channel_selection.lower())
-    st.pyplot(fig)
+def make_stripes_image(size: int = 256) -> np.ndarray:
+    """High-frequency vertical stripes, good for later frequency-domain demos too."""
+    x = np.arange(size)
+    stripe = (np.sin(x * np.pi / 4) > 0).astype(np.float64) * 255
+    stripe_2d = np.tile(stripe, (size, 1))
+    img = np.stack([stripe_2d, np.roll(stripe_2d, 8, axis=1), np.full((size, size), 128.0)], axis=-1)
+    return img.astype(np.float64)
+
+
+def make_radial_image(size: int = 256) -> np.ndarray:
+    """Smooth radial gradient -- almost all low-frequency content, good filtering contrast."""
+    yy, xx = np.ogrid[:size, :size]
+    cy, cx = size / 2, size / 2
+    dist = np.sqrt((yy - cy) ** 2 + (xx - cx) ** 2)
+    dist_norm = np.clip(dist / (size / 2) * 255, 0, 255)
+    img = np.stack([255 - dist_norm, dist_norm, np.full((size, size), 180.0)], axis=-1)
+    return img.astype(np.float64)
+
+
+SAMPLE_IMAGES = {
+    "Gradient + circle": make_gradient_circle_image,
+    "Stripes": make_stripes_image,
+    "Radial gradient": make_radial_image,
+}
+
+
+# ---------------------------------------------------------------------------
+# Image loading helpers
+# ---------------------------------------------------------------------------
+
+def load_uploaded_image(uploaded_file) -> np.ndarray:
+    """Read an uploaded file (via Streamlit's uploader) into a float64 RGB array.
+
+    Uses PIL instead of cv2.imread since the uploaded file is in-memory
+    bytes, not a filesystem path -- cv2.imread only reads from disk.
+    """
+    image = Image.open(io.BytesIO(uploaded_file.getvalue())).convert("RGB")
+    return np.array(image).astype(np.float64)
+
+
+# ---------------------------------------------------------------------------
+# Streamlit app
+# ---------------------------------------------------------------------------
+
+TOOLS = [
+    "Color channel analyzer and histogram",
+]
+
+
+# ---------------------------------------------------------------------------
+# Tool implementations
+# ---------------------------------------------------------------------------
+
+def run_color_channel_analyzer(img: np.ndarray, channels: dict) -> None:
+    """Stage A + B: channel separation and histograms."""
+    st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
+
+    st.divider()
+
+    # --- Stage A: channel separation ---
+    st.subheader("Color Channels")
+    channel_view_mode = st.radio("Channel display style", ["Grayscale", "Tinted color"], horizontal=True)
+
+    col_r, col_g, col_b = st.columns(3)
+    for col, name in zip([col_r, col_g, col_b], ["R", "G", "B"]):
+        with col:
+            if channel_view_mode == "Grayscale":
+                display_img = channel_as_grayscale_image(channels[name])
+            else:
+                display_img = channel_as_color_image(channels[name], name)
+            st.image(display_img, caption=f"{name} channel", width="stretch")
+
+            hist_fig = plot_single_channel_histogram(channels[name], name)
+            st.pyplot(hist_fig)
+
+    st.divider()
+
+    # --- Stage B: histograms ---
+    st.subheader("Combined Histogram")
+
+    hist_col1, hist_col2 = st.columns(2)
+    with hist_col1:
+        show_combined = st.checkbox("Show combined histogram", value=True)
+    with hist_col2:
+        show_luminance = st.checkbox("Show luminance histogram", value=False)
+
+    fig = plot_channel_histograms(
+        channels,
+        title="Combined Histogram",
+        show_combined=show_combined,
+        show_luminance=show_luminance,
+    )
+    st.pyplot(fig, width="content")
+
+
+TOOL_RUNNERS = {
+    "Color channel analyzer and histogram": run_color_channel_analyzer,
+}
+
+
+# ---------------------------------------------------------------------------
+# Streamlit app
+# ---------------------------------------------------------------------------
+
+st.set_page_config(page_title="Bindu - Image Tools", layout="wide")
+# st.title("imgutil")
+# st.caption("Interactive companion to the imgutil image-processing package")
+
+# --- Image source selection ---
+st.sidebar.header("Image source")
+source_mode = st.sidebar.radio("Load from", ["Upload", "Sample gallery"])
+
+img = None
+
+if source_mode == "Upload":
+    uploaded_file = st.sidebar.file_uploader("Choose an image", type=["png", "jpg", "jpeg", "bmp"])
+    if uploaded_file is not None:
+        img = load_uploaded_image(uploaded_file)
+    else:
+        st.info("Upload an image, or switch to the sample gallery in the sidebar.")
 
 else:
-    st.info("Please upload an image to begin the analysis.")
+    sample_name = st.sidebar.selectbox("Sample image", list(SAMPLE_IMAGES.keys()))
+    img = SAMPLE_IMAGES[sample_name]()
+
+st.sidebar.caption(f"Image shape: {img.shape[0]} x {img.shape[1]}")
+
+# --- Tool selection ---
+st.sidebar.divider()
+st.sidebar.header("Tools")
+selected_tool = st.sidebar.radio("Choose a tool", TOOLS, label_visibility="collapsed")
+
+
+if img is None:
+    st.stop()
+
+
+channels = split_channels(img)
+
+# --- Main content ---
+TOOL_RUNNERS[selected_tool](img, channels)
