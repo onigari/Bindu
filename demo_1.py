@@ -54,14 +54,8 @@ def main():
     plot_channel_histograms(channels, title="Combined Histogram", ax=axes[1, 0])
     axes[1, 0].axis("on")
 
-    colors = {"R": "red", "G": "green", "B": "blue"}
     for i, name in enumerate(names):
-        hist, edges = np.histogram(channels[name].ravel(), bins=256, range=(0, 256))
-        centers = (edges[:-1] + edges[1:]) / 2
-        axes[1, i + 1].plot(centers, hist, color=colors[name])
-        axes[1, i + 1].fill_between(centers, hist, 0, color=colors[name], alpha=0.4)    # if want to fill axis
-        axes[1, i + 1].set_title(f"{name} histogram")
-        axes[1, i + 1].set_xlabel("Intensity")
+        plot_single_channel_histogram(channels[name], name, ax=axes[1, i + 1])
 
     fig.tight_layout()
     out_dir = "out"

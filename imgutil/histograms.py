@@ -37,6 +37,37 @@ def compute_luminance_histogram(channels: dict, bins: int = 256, value_range=(0,
     return hist, edges
 
 
+def plot_single_channel_histogram(channel: np.ndarray, name: str, bins: int = 256,
+                                   value_range=(0, 256), ax=None, fill_axis: bool = True):
+    """Plot histogram for a single channel on its own axes.
+
+    name is used both as the plot title and to pick a display color
+    (falls back to black for names outside R/G/B, e.g. 'Y', 'Cb', 'Cr').
+    Returns the created figure if ax was None, otherwise the ax itself
+    """
+    colors = {"R": "red", "G": "green", "B": "blue"}
+    color = colors.get(name, "black")
+    fig = None
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(5, 4))
+
+    hist, edges = compute_histogram(channel, bins=bins, value_range=value_range)
+    centers = (edges[:-1] + edges[1:]) / 2
+    ax.plot(centers, hist, color=color, alpha=0.8)
+    if fill_axis:
+        ax.fill_between(centers, hist, 0, color=color, alpha=0.35)
+
+    ax.set_title(f"{name} histogram")
+    ax.set_xlabel("Pixel intensity")
+    ax.set_ylabel("Count")
+
+    if fig is not None:
+        fig.tight_layout()
+        return fig
+    return ax
+
+
 def plot_channel_histograms(channels: dict, title: str = "Channel Histograms", ax=None,
                             fill_axis: bool = True, show_combined: bool = True, show_luminance: bool = False):
     """Overlay R/G/B histograms on one plot along with their combined and/or luminance histogram.
