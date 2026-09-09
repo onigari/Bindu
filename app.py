@@ -63,6 +63,18 @@ SAMPLE_IMAGES = {
 # Image loading helpers
 # ---------------------------------------------------------------------------
 
+@st.cache_data(show_spinner=False)
+def _cached_magnitude_spectrum(channel: np.ndarray, log_scale: bool) -> np.ndarray:
+    """FFT + magnitude spectrum for one channel, memoized on (channel bytes, log_scale).
+
+    Streamlit reruns the whole script on every widget interaction, so
+    without caching this FFT gets redone even when nothing it depends on
+    (the channel data, the log_scale flag) has actually changed.
+    """
+    fft_result = compute_fft(channel)
+    return compute_magnitude_spectrum(fft_result, log_scale=log_scale)
+
+
 def load_uploaded_image(uploaded_file) -> np.ndarray:
     """Read an uploaded file (via Streamlit's uploader) into a float64 RGB array.
 
@@ -115,7 +127,8 @@ def run_color_channel_analyzer(img: np.ndarray, channels: dict) -> None:
         with col:
             hist_fig = plot_single_channel_histogram(channels[name], name)
             st.pyplot(hist_fig)
-    
+            plt.close(hist_fig)
+
     st.divider()
 
     # --- Stage B: histograms ---
@@ -134,9 +147,73 @@ def run_color_channel_analyzer(img: np.ndarray, channels: dict) -> None:
         show_luminance=show_luminance,
     )
     st.pyplot(fig, width="content")
+    plt.close(fig)
 
     st.divider()
 
+    # --- Stage C: frequency content ---
+    # This whole block is its own fragment: toggling the checkboxes below
+    # reruns only this function, not the channel images/histograms above
+    # (which is what caused the visible lag before).
+    render_frequency_content(channels, names)
+
+
+@st.fragment
+def render_frequency_content(channels: dict, names: list) -> None:
+    """Stage C: frequency content -- isolated as a fragment.
+
+    Without @st.fragment, Streamlit reruns the *entire* script on every
+    checkbox click, so toggling "Log-scale magnitude" was also
+    re-rendering the channel images and every histogram above it before
+    it ever got to redrawing the spectra -- that's the lag. Scoping this
+    block to a fragment means only this function reruns when its own
+    widgets change.
+    """
+    st.subheader("Frequency Content")
+
+    freq_col1, freq_col2 = st.columns(2)
+    with freq_col1:
+        log_scale = st.checkbox("Log-scale magnitude", value=True)
+    with freq_col2:
+        show_luminance_spectrum = st.checkbox("Show combined luminance spectrum", value=True)
+
+    n_panels = len(names) + (1 if show_luminance_spectrum else 0)
+    spectrum_cols = st.columns(n_panels)
+
+    for col, name in zip(spectrum_cols, names):
+        with col:
+            spectrum = _cached_magnitude_spectrum(channels[name], log_scale)
+            fig, ax = plt.subplots(figsize=(4, 4))
+            im = ax.imshow(spectrum, cmap="viridis")
+            ax.set_title(f"{name} spectrum")
+            ax.axis("off")
+            fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+            fig.tight_layout()
+            st.pyplot(fig)
+            plt.close(fig)
+
+    if show_luminance_spectrum:
+        with spectrum_cols[-1]:
+            luminance = 0.299 * channels["R"] + 0.587 * channels["G"] + 0.114 * channels["B"]
+            lum_spectrum = _cached_magnitude_spectrum(luminance, log_scale)
+            fig, ax = plt.subplots(figsize=(4, 4))
+            im = ax.imshow(lum_spectrum, cmap="viridis")
+            ax.set_title("Luminance spectrum")
+            ax.axis("off")
+            fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+            fig.tight_layout()
+            st.pyplot(fig)
+            plt.close(fig)
+
+    # Frequency-domain energy per channel (how much "information" each channel carries)
+    energy_report = compare_channel_energy(channels)
+    energy_cols = st.columns(3)
+    for col, name in zip(energy_cols, names):
+        with col:
+            st.metric(
+                label=f"{name} energy share",
+                value=f"{energy_report[name]['fraction']:.1%}",
+            )
 
 
 TOOL_RUNNERS = {
