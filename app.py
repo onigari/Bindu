@@ -96,17 +96,25 @@ def run_color_channel_analyzer(img: np.ndarray, channels: dict) -> None:
     channel_view_mode = st.radio("Channel display style", ["Grayscale", "Tinted color"], horizontal=True)
 
     col_r, col_g, col_b = st.columns(3)
-    for col, name in zip([col_r, col_g, col_b], ["R", "G", "B"]):
+    cols = [col_r, col_g, col_b]
+    names = ["R", "G", "B"]
+
+    # 1. Render all three images instantly
+    for col, name in zip(cols, names):
         with col:
             if channel_view_mode == "Grayscale":
                 display_img = channel_as_grayscale_image(channels[name])
             else:
                 display_img = channel_as_color_image(channels[name], name)
-            st.image(display_img, caption=f"{name} channel", width="stretch")
+            
+            st.image(display_img, caption=f"{name} channel", use_container_width=True)
 
+    # 2. Generate and render the matplotlib histograms afterwards
+    for col, name in zip(cols, names):
+        with col:
             hist_fig = plot_single_channel_histogram(channels[name], name)
             st.pyplot(hist_fig)
-
+    
     st.divider()
 
     # --- Stage B: histograms ---
@@ -157,7 +165,7 @@ else:
     sample_name = st.sidebar.selectbox("Sample image", list(SAMPLE_IMAGES.keys()))
     img = SAMPLE_IMAGES[sample_name]()
 
-st.sidebar.caption(f"Image shape: {img.shape[0]} x {img.shape[1]}")
+# st.sidebar.caption(f"Image shape: {img.shape[0]} x {img.shape[1]}")
 
 # --- Tool selection ---
 st.sidebar.divider()
