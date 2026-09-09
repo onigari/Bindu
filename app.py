@@ -64,15 +64,31 @@ SAMPLE_IMAGES = {
 # ---------------------------------------------------------------------------
 
 @st.cache_data(show_spinner=False)
-def _cached_magnitude_spectrum(channel: np.ndarray, log_scale: bool) -> np.ndarray:
-    """FFT + magnitude spectrum for one channel, memoized on (channel bytes, log_scale).
+def _cached_fft(channel: np.ndarray) -> np.ndarray:
+    """Raw FFT for one channel, memoized on the channel's bytes only.
 
-    Streamlit reruns the whole script on every widget interaction, so
-    without caching this FFT gets redone even when nothing it depends on
-    (the channel data, the log_scale flag) has actually changed.
+    Kept separate from log-scale display formatting: log_scale only
+    changes how the magnitude is *displayed*, not the FFT itself, so it
+    must not be part of this cache key or every checkbox toggle forces a
+    full fft2 recompute for nothing.
     """
-    fft_result = compute_fft(channel)
-    return compute_magnitude_spectrum(fft_result, log_scale=log_scale)
+    return compute_fft(channel)
+
+
+def _spectrum_to_rgb(spectrum: np.ndarray, cmap_name: str = "viridis") -> np.ndarray:
+    """Map a 2D magnitude spectrum straight to a uint8 RGB array.
+
+    This replaces building a full Matplotlib Figure (imshow + colorbar +
+    tight_layout) per panel, which is the actual remaining source of lag:
+    each Figure/colorbar build routinely costs 50-150ms, and there are up
+    to 4 of them redrawn on every checkbox click. Plain numpy + a
+    colormap lookup is essentially instant, and st.image() displays the
+    array directly with no Figure lifecycle at all.
+    """
+    vmin, vmax = float(spectrum.min()), float(spectrum.max())
+    norm = (spectrum - vmin) / (vmax - vmin) if vmax > vmin else np.zeros_like(spectrum)
+    rgba = plt.get_cmap(cmap_name)(norm)
+    return (rgba[:, :, :3] * 255).astype(np.uint8)
 
 
 def load_uploaded_image(uploaded_file) -> np.ndarray:
@@ -182,28 +198,20 @@ def render_frequency_content(channels: dict, names: list) -> None:
 
     for col, name in zip(spectrum_cols, names):
         with col:
-            spectrum = _cached_magnitude_spectrum(channels[name], log_scale)
-            fig, ax = plt.subplots(figsize=(4, 4))
-            im = ax.imshow(spectrum, cmap="viridis")
-            ax.set_title(f"{name} spectrum")
-            ax.axis("off")
-            fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-            fig.tight_layout()
-            st.pyplot(fig)
-            plt.close(fig)
+            fft_result = _cached_fft(channels[name])
+            spectrum = compute_magnitude_spectrum(fft_result, log_scale=log_scale)
+            rgb = _spectrum_to_rgb(spectrum)
+            st.image(rgb, caption=f"{name} spectrum", width="stretch")
+            st.caption(f"min {spectrum.min():.2f} · max {spectrum.max():.2f}")
 
     if show_luminance_spectrum:
         with spectrum_cols[-1]:
             luminance = 0.299 * channels["R"] + 0.587 * channels["G"] + 0.114 * channels["B"]
-            lum_spectrum = _cached_magnitude_spectrum(luminance, log_scale)
-            fig, ax = plt.subplots(figsize=(4, 4))
-            im = ax.imshow(lum_spectrum, cmap="viridis")
-            ax.set_title("Luminance spectrum")
-            ax.axis("off")
-            fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-            fig.tight_layout()
-            st.pyplot(fig)
-            plt.close(fig)
+            lum_fft = _cached_fft(luminance)
+            lum_spectrum = compute_magnitude_spectrum(lum_fft, log_scale=log_scale)
+            rgb = _spectrum_to_rgb(lum_spectrum)
+            st.image(rgb, caption="Luminance spectrum", width="stretch")
+            st.caption(f"min {lum_spectrum.min():.2f} · max {lum_spectrum.max():.2f}")
 
     # Frequency-domain energy per channel (how much "information" each channel carries)
     energy_report = compare_channel_energy(channels)
