@@ -88,7 +88,7 @@ def _shared_colorbar_figure(vmin: float, vmax: float, cmap_name: str = "viridis"
     the only piece of real matplotlib in this rendering path -- the
     spectrum panels themselves stay on the fast numpy path.
     """
-    fig, ax = plt.subplots(figsize=(0.9, 3.6))
+    fig, ax = plt.subplots(figsize=(1.1, 4.4))
     norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
     cb = fig.colorbar(
         plt.cm.ScalarMappable(norm=norm, cmap=cmap_name),
@@ -222,46 +222,62 @@ def render_frequency_content(channels: dict, names: list) -> None:
     with freq_col2:
         show_luminance_spectrum = st.checkbox("Show combined luminance spectrum", value=True)
 
-    # Compute all spectra up front (cheap; the real cost was always the
-    # rendering step, not the FFT itself thanks to _cached_fft).
-    spectra = {}
+    # Compute all channel spectra up front (cheap; the real cost was always
+    # the rendering step, not the FFT itself thanks to _cached_fft).
+    channel_spectra = {}
     for name in names:
         fft_result = _cached_fft(channels[name])
-        spectra[name] = compute_magnitude_spectrum(fft_result, log_scale=log_scale)
+        channel_spectra[name] = compute_magnitude_spectrum(fft_result, log_scale=log_scale)
 
+    luminance_spectrum = None
     if show_luminance_spectrum:
         luminance = 0.299 * channels["R"] + 0.587 * channels["G"] + 0.114 * channels["B"]
         lum_fft = _cached_fft(luminance)
-        spectra["Luminance"] = compute_magnitude_spectrum(lum_fft, log_scale=log_scale)
+        luminance_spectrum = compute_magnitude_spectrum(lum_fft, log_scale=log_scale)
 
-    panel_names = list(spectra.keys())
-    n_panels = len(panel_names)
+    # Shared (vmin, vmax) across every spectrum being shown (channels +
+    # luminance) so the one colorbar is accurate for all of them, not just
+    # whichever one happened to set the range.
+    all_spectra = list(channel_spectra.values()) + (
+        [luminance_spectrum] if luminance_spectrum is not None else []
+    )
+    global_vmin = min(float(s.min()) for s in all_spectra)
+    global_vmax = max(float(s.max()) for s in all_spectra)
 
-    # Shared (vmin, vmax) across all panels so the one colorbar is accurate
-    # for every panel, not just whichever one happened to set the range.
-    global_vmin = min(float(s.min()) for s in spectra.values())
-    global_vmax = max(float(s.max()) for s in spectra.values())
+    # --- Row 1: R/G/B spectra, with the colorbar legend on the right ---
+    n_channels = len(names)
+    *panel_cols, legend_col = st.columns([4] * n_channels + [1])
 
-    legend_col, *panel_cols = st.columns([1] + [4] * n_panels)
+    for col, name in zip(panel_cols, names):
+        with col:
+            rgb = _shared_normalized_spectrum_to_rgb(channel_spectra[name], global_vmin, global_vmax)
+            st.image(rgb, caption=f"{name} spectrum", width="stretch")
+
     with legend_col:
-        st.caption("Magnitude")
+        # Blank caption-height placeholder so the colorbar image itself
+        # starts at the same vertical offset as the spectrum images
+        # (which each have a real caption above their image).
+        st.caption("\u200b")
         cb_fig = _shared_colorbar_figure(round(global_vmin, 4), round(global_vmax, 4))
         st.pyplot(cb_fig, width="stretch")
 
-    for col, name in zip(panel_cols, panel_names):
-        with col:
-            rgb = _shared_normalized_spectrum_to_rgb(spectra[name], global_vmin, global_vmax)
-            st.image(rgb, caption=f"{name} spectrum", width="stretch")
-
-    # Frequency-domain energy per channel (how much "information" each channel carries)
+    # --- Row 2: energy share per channel, directly under the spectra ---
     energy_report = compare_channel_energy(channels)
-    energy_cols = st.columns(3)
+    *energy_cols, _energy_legend_spacer = st.columns([4] * n_channels + [1])
     for col, name in zip(energy_cols, names):
         with col:
             st.metric(
                 label=f"{name} energy share",
                 value=f"{energy_report[name]['fraction']:.1%}",
             )
+
+    # --- Row 3: combined luminance spectrum, below everything else ---
+    if luminance_spectrum is not None:
+        lum_width, rest_width = 4, 4 * (n_channels - 1) + 1  # one panel-width + leftover blank
+        lum_col, _ = st.columns([lum_width, rest_width])
+        with lum_col:
+            rgb = _shared_normalized_spectrum_to_rgb(luminance_spectrum, global_vmin, global_vmax)
+            st.image(rgb, caption="Luminance spectrum", width="stretch")
 
 
 TOOL_RUNNERS = {
