@@ -5,6 +5,8 @@ Run with:
 import io
 
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 import streamlit as st
 from PIL import Image
 
@@ -75,18 +77,39 @@ def _cached_fft(channel: np.ndarray) -> np.ndarray:
     return compute_fft(channel)
 
 
-def _spectrum_to_rgb(spectrum: np.ndarray, cmap_name: str = "viridis") -> np.ndarray:
-    """Map a 2D magnitude spectrum straight to a uint8 RGB array.
+@st.cache_resource(show_spinner=False)
+def _shared_colorbar_figure(vmin: float, vmax: float, cmap_name: str = "viridis"):
+    """One small shared matplotlib colorbar legend, cached.
 
-    This replaces building a full Matplotlib Figure (imshow + colorbar +
-    tight_layout) per panel, which is the actual remaining source of lag:
-    each Figure/colorbar build routinely costs 50-150ms, and there are up
-    to 4 of them redrawn on every checkbox click. Plain numpy + a
-    colormap lookup is essentially instant, and st.image() displays the
-    array directly with no Figure lifecycle at all.
+    Built once per (vmin, vmax, cmap) combination via st.cache_resource
+    (matplotlib Figures aren't picklable/hashable the way st.cache_data
+    wants, so cache_resource is the correct cache for this), then reused
+    across reruns instead of rebuilt on every checkbox toggle. This is
+    the only piece of real matplotlib in this rendering path -- the
+    spectrum panels themselves stay on the fast numpy path.
     """
-    vmin, vmax = float(spectrum.min()), float(spectrum.max())
+    fig, ax = plt.subplots(figsize=(0.9, 3.6))
+    norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
+    cb = fig.colorbar(
+        plt.cm.ScalarMappable(norm=norm, cmap=cmap_name),
+        cax=ax,
+    )
+    cb.ax.tick_params(labelsize=8)
+    fig.tight_layout()
+    return fig
+
+
+def _shared_normalized_spectrum_to_rgb(spectrum: np.ndarray, vmin: float, vmax: float,
+                                        cmap_name: str = "viridis") -> np.ndarray:
+    """Map a spectrum to RGB, normalized against a shared (vmin, vmax) range
+    instead of each panel's own min/max.
+
+    A single shared colorbar is only a truthful legend if every panel was
+    colored against the same range -- per-panel auto-scaling would make
+    the shared colorbar lie for panels other than the one that set it.
+    """
     norm = (spectrum - vmin) / (vmax - vmin) if vmax > vmin else np.zeros_like(spectrum)
+    norm = np.clip(norm, 0.0, 1.0)
     rgba = plt.get_cmap(cmap_name)(norm)
     return (rgba[:, :, :3] * 255).astype(np.uint8)
 
@@ -184,6 +207,12 @@ def render_frequency_content(channels: dict, names: list) -> None:
     it ever got to redrawing the spectra -- that's the lag. Scoping this
     block to a fragment means only this function reruns when its own
     widgets change.
+
+    Spectrum panels are plain numpy->RGB images (fast, no per-panel
+    Figure), paired with a single shared matplotlib colorbar legend that's
+    cached via st.cache_resource so it isn't rebuilt on every toggle.
+    Every panel is normalized to the same (vmin, vmax) range so that one
+    shared legend is an accurate read for all of them.
     """
     st.subheader("Frequency Content")
 
@@ -193,25 +222,36 @@ def render_frequency_content(channels: dict, names: list) -> None:
     with freq_col2:
         show_luminance_spectrum = st.checkbox("Show combined luminance spectrum", value=True)
 
-    n_panels = len(names) + (1 if show_luminance_spectrum else 0)
-    spectrum_cols = st.columns(n_panels)
-
-    for col, name in zip(spectrum_cols, names):
-        with col:
-            fft_result = _cached_fft(channels[name])
-            spectrum = compute_magnitude_spectrum(fft_result, log_scale=log_scale)
-            rgb = _spectrum_to_rgb(spectrum)
-            st.image(rgb, caption=f"{name} spectrum", width="stretch")
-            st.caption(f"min {spectrum.min():.2f} · max {spectrum.max():.2f}")
+    # Compute all spectra up front (cheap; the real cost was always the
+    # rendering step, not the FFT itself thanks to _cached_fft).
+    spectra = {}
+    for name in names:
+        fft_result = _cached_fft(channels[name])
+        spectra[name] = compute_magnitude_spectrum(fft_result, log_scale=log_scale)
 
     if show_luminance_spectrum:
-        with spectrum_cols[-1]:
-            luminance = 0.299 * channels["R"] + 0.587 * channels["G"] + 0.114 * channels["B"]
-            lum_fft = _cached_fft(luminance)
-            lum_spectrum = compute_magnitude_spectrum(lum_fft, log_scale=log_scale)
-            rgb = _spectrum_to_rgb(lum_spectrum)
-            st.image(rgb, caption="Luminance spectrum", width="stretch")
-            st.caption(f"min {lum_spectrum.min():.2f} · max {lum_spectrum.max():.2f}")
+        luminance = 0.299 * channels["R"] + 0.587 * channels["G"] + 0.114 * channels["B"]
+        lum_fft = _cached_fft(luminance)
+        spectra["Luminance"] = compute_magnitude_spectrum(lum_fft, log_scale=log_scale)
+
+    panel_names = list(spectra.keys())
+    n_panels = len(panel_names)
+
+    # Shared (vmin, vmax) across all panels so the one colorbar is accurate
+    # for every panel, not just whichever one happened to set the range.
+    global_vmin = min(float(s.min()) for s in spectra.values())
+    global_vmax = max(float(s.max()) for s in spectra.values())
+
+    legend_col, *panel_cols = st.columns([1] + [4] * n_panels)
+    with legend_col:
+        st.caption("Magnitude")
+        cb_fig = _shared_colorbar_figure(round(global_vmin, 4), round(global_vmax, 4))
+        st.pyplot(cb_fig, width="stretch")
+
+    for col, name in zip(panel_cols, panel_names):
+        with col:
+            rgb = _shared_normalized_spectrum_to_rgb(spectra[name], global_vmin, global_vmax)
+            st.image(rgb, caption=f"{name} spectrum", width="stretch")
 
     # Frequency-domain energy per channel (how much "information" each channel carries)
     energy_report = compare_channel_energy(channels)
