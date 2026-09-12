@@ -108,6 +108,20 @@ def load_uploaded_image(uploaded_file) -> np.ndarray:
     return np.array(image).astype(np.float64)
 
 
+def make_single_channel_filtered_image(channels: dict, chan_fn, channel_name: str, **kwargs) -> np.ndarray:
+    """Apply chan_fn to just one channel, leave the other two untouched, and
+    recombine into a full RGB image.
+
+    Useful for visualizing *which* channel a filter's effect actually shows
+    up in -- e.g. filtering only R will only change the red content of the
+    merged image, so any blur/sharpen artifacts you see are entirely
+    attributable to that channel.
+    """
+    modified = dict(channels)  # shallow copy: unfiltered channels stay shared
+    modified[channel_name] = chan_fn(channels[channel_name], **kwargs)
+    return merge_channels(modified)
+
+
 # ---------------------------------------------------------------------------
 # Filter configuration
 # ---------------------------------------------------------------------------
@@ -283,7 +297,6 @@ def run_spatial_filtering(img: np.ndarray, channels: dict) -> None:
 
     st.divider()
 
-    # --- Filter selection + parameters ---
     st.subheader("Filter Settings")
     filter_name = st.selectbox("Filter", list(FILTER_CONFIGS.keys()))
     config = FILTER_CONFIGS[filter_name]
@@ -301,26 +314,38 @@ def run_spatial_filtering(img: np.ndarray, channels: dict) -> None:
     chan_fn = config["channel_fn"]
     merged_fn = config["merged_fn"]
 
-    # --- Apply both ways ---
-    per_channel_result = merge_channels(filter_channels(channels, chan_fn, **kwargs))
+    r_only_result = make_single_channel_filtered_image(channels, chan_fn, "R", **kwargs)
+    g_only_result = make_single_channel_filtered_image(channels, chan_fn, "G", **kwargs)
+    b_only_result = make_single_channel_filtered_image(channels, chan_fn, "B", **kwargs)
     merged_result = merged_fn(img, **kwargs)
+
     stats = compare_perchannel_vs_merged(img, channels, chan_fn, **kwargs)
 
     st.divider()
 
-    # --- Results, side by side ---
     st.subheader("Result")
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         st.image(
-            np.clip(per_channel_result, 0, 255).astype(np.uint8),
-            caption=f"{filter_name} (per-channel)",
+            np.clip(r_only_result, 0, 255).astype(np.uint8),
+            caption=f"{filter_name} (R only)",
             width="stretch",
         )
     with col2:
         st.image(
+            np.clip(g_only_result, 0, 255).astype(np.uint8),
+            caption=f"{filter_name} (G only)",
+            width="stretch",
+        )
+    with col3:
+        st.image(
+            np.clip(b_only_result, 0, 255).astype(np.uint8),
+            caption=f"{filter_name} (B only)",
+            width="stretch",
+        )
+    st.image(
             np.clip(merged_result, 0, 255).astype(np.uint8),
-            caption=f"{filter_name} (merged image)",
+            caption=f"{filter_name} (all channels)",
             width="stretch",
         )
 
