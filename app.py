@@ -13,6 +13,13 @@ from PIL import Image
 from imgutil.core import *
 from imgutil.histograms import *
 from imgutil.frequency import *
+from imgutil.filtering import (
+    gaussian_blur_channel, gaussian_blur,
+    box_blur_channel, box_blur,
+    laplacian_sharpen_channel, laplacian_sharpen,
+    unsharp_mask_channel, unsharp_mask,
+    filter_channels, compare_perchannel_vs_merged,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -67,27 +74,11 @@ SAMPLE_IMAGES = {
 
 @st.cache_data(show_spinner=False)
 def _cached_fft(channel: np.ndarray) -> np.ndarray:
-    """Raw FFT for one channel, memoized on the channel's bytes only.
-
-    Kept separate from log-scale display formatting: log_scale only
-    changes how the magnitude is *displayed*, not the FFT itself, so it
-    must not be part of this cache key or every checkbox toggle forces a
-    full fft2 recompute for nothing.
-    """
     return compute_fft(channel)
 
 
 @st.cache_resource(show_spinner=False)
 def _shared_colorbar_figure(vmin: float, vmax: float, cmap_name: str = "viridis"):
-    """One small shared matplotlib colorbar legend, cached.
-
-    Built once per (vmin, vmax, cmap) combination via st.cache_resource
-    (matplotlib Figures aren't picklable/hashable the way st.cache_data
-    wants, so cache_resource is the correct cache for this), then reused
-    across reruns instead of rebuilt on every checkbox toggle. This is
-    the only piece of real matplotlib in this rendering path -- the
-    spectrum panels themselves stay on the fast numpy path.
-    """
     fig, ax = plt.subplots(figsize=(1.1, 4.4))
     norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
     cb = fig.colorbar(
@@ -101,13 +92,6 @@ def _shared_colorbar_figure(vmin: float, vmax: float, cmap_name: str = "viridis"
 
 def _shared_normalized_spectrum_to_rgb(spectrum: np.ndarray, vmin: float, vmax: float,
                                         cmap_name: str = "viridis") -> np.ndarray:
-    """Map a spectrum to RGB, normalized against a shared (vmin, vmax) range
-    instead of each panel's own min/max.
-
-    A single shared colorbar is only a truthful legend if every panel was
-    colored against the same range -- per-panel auto-scaling would make
-    the shared colorbar lie for panels other than the one that set it.
-    """
     norm = (spectrum - vmin) / (vmax - vmin) if vmax > vmin else np.zeros_like(spectrum)
     norm = np.clip(norm, 0.0, 1.0)
     rgba = plt.get_cmap(cmap_name)(norm)
@@ -125,11 +109,49 @@ def load_uploaded_image(uploaded_file) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
+# Filter configuration
+# ---------------------------------------------------------------------------
+FILTER_CONFIGS = {
+    "Gaussian blur": {
+        "channel_fn": gaussian_blur_channel,
+        "merged_fn": gaussian_blur,
+        "params": [
+            {"name": "sigma", "label": "Sigma", "min": 0.1, "max": 15.0, "default": 3.0, "step": 0.1},
+        ],
+    },
+    "Box blur": {
+        "channel_fn": box_blur_channel,
+        "merged_fn": box_blur,
+        "params": [
+            {"name": "ksize", "label": "Kernel size", "min": 1, "max": 31, "default": 7, "step": 2, "int": True},
+        ],
+    },
+    "Unsharp mask": {
+        "channel_fn": unsharp_mask_channel,
+        "merged_fn": unsharp_mask,
+        "params": [
+            {"name": "sigma", "label": "Blur sigma", "min": 0.1, "max": 15.0, "default": 2.0, "step": 0.1},
+            {"name": "amount", "label": "Amount", "min": 0.0, "max": 5.0, "default": 1.5, "step": 0.1},
+        ],
+    },
+    "Laplacian sharpen": {
+        "channel_fn": laplacian_sharpen_channel,
+        "merged_fn": laplacian_sharpen,
+        "params": [
+            {"name": "ksize", "label": "Kernel size", "min": 1, "max": 15, "default": 3, "step": 2, "int": True},
+            {"name": "scale", "label": "Scale", "min": 0.0, "max": 5.0, "default": 1.0, "step": 0.1},
+        ],
+    },
+}
+
+
+# ---------------------------------------------------------------------------
 # Streamlit app
 # ---------------------------------------------------------------------------
 
 TOOLS = [
     "Color channel analyzer and histogram",
+    "Filtering",
 ]
 
 
@@ -190,30 +212,11 @@ def run_color_channel_analyzer(img: np.ndarray, channels: dict) -> None:
 
     st.divider()
 
-    # --- Stage C: frequency content ---
-    # This whole block is its own fragment: toggling the checkboxes below
-    # reruns only this function, not the channel images/histograms above
-    # (which is what caused the visible lag before).
     render_frequency_content(channels, names)
 
 
 @st.fragment
 def render_frequency_content(channels: dict, names: list) -> None:
-    """Stage C: frequency content -- isolated as a fragment.
-
-    Without @st.fragment, Streamlit reruns the *entire* script on every
-    checkbox click, so toggling "Log-scale magnitude" was also
-    re-rendering the channel images and every histogram above it before
-    it ever got to redrawing the spectra -- that's the lag. Scoping this
-    block to a fragment means only this function reruns when its own
-    widgets change.
-
-    Spectrum panels are plain numpy->RGB images (fast, no per-panel
-    Figure), paired with a single shared matplotlib colorbar legend that's
-    cached via st.cache_resource so it isn't rebuilt on every toggle.
-    Every panel is normalized to the same (vmin, vmax) range so that one
-    shared legend is an accurate read for all of them.
-    """
     st.subheader("Frequency Content")
 
     freq_col1, freq_col2 = st.columns(2)
@@ -222,8 +225,6 @@ def render_frequency_content(channels: dict, names: list) -> None:
     with freq_col2:
         show_luminance_spectrum = st.checkbox("Show combined luminance spectrum", value=True)
 
-    # Compute all channel spectra up front (cheap; the real cost was always
-    # the rendering step, not the FFT itself thanks to _cached_fft).
     channel_spectra = {}
     for name in names:
         fft_result = _cached_fft(channels[name])
@@ -235,9 +236,6 @@ def render_frequency_content(channels: dict, names: list) -> None:
         lum_fft = _cached_fft(luminance)
         luminance_spectrum = compute_magnitude_spectrum(lum_fft, log_scale=log_scale)
 
-    # Shared (vmin, vmax) across every spectrum being shown (channels +
-    # luminance) so the one colorbar is accurate for all of them, not just
-    # whichever one happened to set the range.
     all_spectra = list(channel_spectra.values()) + (
         [luminance_spectrum] if luminance_spectrum is not None else []
     )
@@ -280,8 +278,58 @@ def render_frequency_content(channels: dict, names: list) -> None:
             st.image(rgb, caption="Luminance spectrum", width="stretch")
 
 
+def run_spatial_filtering(img: np.ndarray, channels: dict) -> None:
+    st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
+
+    st.divider()
+
+    # --- Filter selection + parameters ---
+    st.subheader("Filter Settings")
+    filter_name = st.selectbox("Filter", list(FILTER_CONFIGS.keys()))
+    config = FILTER_CONFIGS[filter_name]
+
+    kwargs = {}
+    param_cols = st.columns(len(config["params"]))
+    for col, param in zip(param_cols, config["params"]):
+        with col:
+            if param.get("int"):
+                value = st.slider(param["label"], param["min"], param["max"], param["default"], step=param["step"],)
+                kwargs[param["name"]] = int(value)
+            else:
+                kwargs[param["name"]] = st.slider(param["label"], param["min"], param["max"], param["default"], step=param["step"],)
+
+    chan_fn = config["channel_fn"]
+    merged_fn = config["merged_fn"]
+
+    # --- Apply both ways ---
+    per_channel_result = merge_channels(filter_channels(channels, chan_fn, **kwargs))
+    merged_result = merged_fn(img, **kwargs)
+    stats = compare_perchannel_vs_merged(img, channels, chan_fn, **kwargs)
+
+    st.divider()
+
+    # --- Results, side by side ---
+    st.subheader("Result")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.image(
+            np.clip(per_channel_result, 0, 255).astype(np.uint8),
+            caption=f"{filter_name} (per-channel)",
+            width="stretch",
+        )
+    with col2:
+        st.image(
+            np.clip(merged_result, 0, 255).astype(np.uint8),
+            caption=f"{filter_name} (merged image)",
+            width="stretch",
+        )
+
+    st.divider()
+
+
 TOOL_RUNNERS = {
     "Color channel analyzer and histogram": run_color_channel_analyzer,
+    "Filtering": run_spatial_filtering,
 }
 
 
