@@ -274,13 +274,34 @@ def render_frequency_content(channels: dict, names: list) -> None:
         st.pyplot(cb_fig, width="stretch")
 
     # --- Row 2: energy share per channel, directly under the spectra ---
+    st.markdown(
+        """
+        <style>
+        .energy-share-label {
+            font-size: 0.75rem;
+            color: rgba(120, 120, 120, 0.9);
+            margin-bottom: 0.1rem;
+        }
+        .energy-share-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            line-height: 1.1;
+            margin-bottom: 1.0rem;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     energy_report = compare_channel_energy(channels)
     *energy_cols, _energy_legend_spacer = st.columns([4] * n_channels + [1])
     for col, name in zip(energy_cols, names):
         with col:
-            st.metric(
-                label=f"{name} energy share",
-                value=f"{energy_report[name]['fraction']:.1%}",
+            st.markdown(
+                f"""
+                <div class="energy-share-label">{name} energy share</div>
+                <div class="energy-share-value">{energy_report[name]['fraction']:.1%}</div>
+                """,
+                unsafe_allow_html=True,
             )
 
     # --- Row 3: combined luminance spectrum, below everything else ---
