@@ -346,7 +346,7 @@ def run_spatial_filtering(img: np.ndarray, channels: dict) -> None:
     st.image(
             np.clip(merged_result, 0, 255).astype(np.uint8),
             caption=f"{filter_name} (all channels)",
-            width="stretch",
+            width=400,
         )
 
     st.divider()
