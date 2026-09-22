@@ -165,6 +165,7 @@ FILTER_CONFIGS = {
 
 TOOLS = [
     "Color channel analyzer and histogram",
+    "Partial image reconstruction",
     "Filtering",
 ]
 
@@ -313,6 +314,36 @@ def render_frequency_content(channels: dict, names: list) -> None:
             st.image(rgb, caption="Luminance spectrum", width="stretch")
 
 
+def run_partial_reconstruction(img: np.ndarray, channels: dict) -> None:
+    st.subheader("Partial Image Reconstruction")
+    st.caption("Combine one or two RGB channels using their frequency content. Omitted channels are set to zero.")
+    selected = st.multiselect(
+        "Channels to reconstruct", ["R", "G", "B"], default=["R", "G"],
+        max_selections=2,
+    )
+    if not selected:
+        st.info("Select one or two channels to reconstruct an image.")
+        return
+
+    selected = [name for name in "RGB" if name in selected]
+    spectra = {name: _cached_fft(channels[name]) for name in selected}
+    reconstructed = reconstruct_partial_image(spectra)
+    # Round inverse-FFT residue before conversion to avoid losing one intensity level.
+    preview = np.rint(np.clip(reconstructed, 0, 255)).astype(np.uint8)
+    original_col, result_col = st.columns(2)
+    with original_col:
+        st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width="stretch")
+    with result_col:
+        st.image(preview, caption=f"Reconstructed: {' + '.join(selected)}", width="stretch")
+
+    png = io.BytesIO()
+    Image.fromarray(preview).save(png, format="PNG")
+    st.download_button(
+        "Download reconstructed image", data=png.getvalue(),
+        file_name=f"reconstructed_{''.join(selected)}.png", mime="image/png",
+    )
+
+
 def run_spatial_filtering(img: np.ndarray, channels: dict) -> None:
     st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
 
@@ -375,6 +406,7 @@ def run_spatial_filtering(img: np.ndarray, channels: dict) -> None:
 
 TOOL_RUNNERS = {
     "Color channel analyzer and histogram": run_color_channel_analyzer,
+    "Partial image reconstruction": run_partial_reconstruction,
     "Filtering": run_spatial_filtering,
 }
 

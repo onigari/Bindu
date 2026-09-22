@@ -35,6 +35,25 @@ def compute_magnitude_spectrum(fft_shifted: np.ndarray, log_scale: bool = True) 
     return magnitude
 
 
+def reconstruct_partial_image(channel_ffts: dict) -> np.ndarray:
+    """Reconstruct RGB from one or two shifted complex channel spectra.
+
+    Keys must be R, G, or B. Omitted channels remain zero. Full complex
+    spectra (including phase), not display magnitudes, are required.
+    Returns a float64 RGB image without clipping or rounding.
+    """
+    if len(channel_ffts) not in (1, 2) or not set(channel_ffts) <= {"R", "G", "B"}:
+        raise ValueError("Select one or two channels from R, G, and B.")
+    spectra = {name: np.asarray(spectrum) for name, spectrum in channel_ffts.items()}
+    shape = next(iter(spectra.values())).shape
+    if len(shape) != 2 or 0 in shape or any(s.shape != shape for s in spectra.values()):
+        raise ValueError("Channel spectra must be nonempty 2D arrays of the same shape.")
+    result = np.zeros((*shape, 3), dtype=np.float64)
+    for name, spectrum in spectra.items():
+        result[:, :, "RGB".index(name)] = compute_inverse_fft(spectrum)
+    return result
+
+
 def compute_channel_ffts(channels: dict) -> dict:
     """FFT every channel in a {'R','G','B'} dict.
 
