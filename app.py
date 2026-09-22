@@ -12,6 +12,7 @@ from PIL import Image
 
 from imgutil.core import *
 from imgutil.color_spaces import rgb_to_ycbcr
+from imgutil.compression import compress_image, decompress_image
 from imgutil.histograms import *
 from imgutil.frequency import *
 from imgutil.filtering import (
@@ -168,6 +169,7 @@ TOOLS = [
     "Color channel analyzer and histogram",
     "Partial image reconstruction",
     "Color space comparison",
+    "Compression and decompression",
     "Filtering",
 ]
 
@@ -398,6 +400,76 @@ def run_color_space_comparison(img: np.ndarray, channels: dict) -> None:
     plt.close(fig)
 
 
+def _png_bytes(img: np.ndarray) -> bytes:
+    buffer = io.BytesIO()
+    Image.fromarray(img).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def run_compression(img, channels) -> None:
+    st.subheader("Compression and Decompression")
+    mode = st.radio("Operation", ["Compress", "Decompress"], horizontal=True)
+    if mode == "Decompress":
+        st.caption("Upload a Fourier .npz file downloaded from this tool. The original image is not required.")
+        uploaded = st.file_uploader("Compressed image", type=["npz"], key="compressed_image")
+        if uploaded is None:
+            return
+        try:
+            restored = decompress_image(uploaded.getvalue())
+        except ValueError as exc:
+            st.error(str(exc))
+            return
+        st.image(restored, caption="Decompressed image", width="stretch")
+        st.caption(f"{restored.shape[1]} × {restored.shape[0]} pixels")
+        st.download_button("Download decompressed PNG", _png_bytes(restored), "decompressed.png", "image/png")
+        return
+
+    if img is None:
+        st.info("Upload an image or choose a sample in the sidebar to compress.")
+        return
+    st.caption(
+        "Keep the strongest Fourier harmonics in each RGB channel until the selected energy target is reached. "
+        "Lower targets usually create smaller files with more detail loss. Removed information cannot be recovered."
+    )
+    with st.form("compression_settings"):
+        energy = st.slider("Energy to retain per channel (%)", 1.0, 100.0, 99.0, 0.1)
+        submitted = st.form_submit_button("Compress and preview")
+    if not submitted:
+        return
+    try:
+        with st.spinner("Compressing and reconstructing image..."):
+            archive, stats = compress_image(img, energy)
+            restored = decompress_image(archive)
+    except ValueError as exc:
+        st.error(str(exc))
+        return
+    original = np.rint(np.clip(img, 0, 255)).astype(np.uint8)
+    original_png = _png_bytes(original)
+    mse = float(np.mean((original.astype(np.float64) - restored.astype(np.float64)) ** 2))
+    psnr = float("inf") if mse == 0 else 10 * np.log10(255 ** 2 / mse)
+    left, right = st.columns(2)
+    with left:
+        st.image(original, caption="Original", width="stretch")
+    with right:
+        st.image(restored, caption="Reconstructed from compressed file", width="stretch")
+    size_col, ratio_col, mse_col, psnr_col = st.columns(4)
+    size_col.metric("Archive size", f"{len(archive) / 1024:,.1f} KiB")
+    ratio_col.metric("Raw RGB / archive", f"{original.nbytes / len(archive):.2f}×")
+    mse_col.metric("MSE", f"{mse:.3f}")
+    psnr_col.metric("PSNR", "∞ (identical)" if mse == 0 else f"{psnr:.2f} dB")
+    st.caption(
+        f"Raw RGB: {original.nbytes / 1024:,.1f} KiB · Original encoded as PNG: {len(original_png) / 1024:,.1f} KiB. "
+        "A ratio below 1 means the archive is larger than raw RGB. Fourier archives can be larger than PNG/JPEG, "
+        "especially at high retention. Energy retention is not a file-size percentage."
+    )
+    st.dataframe(stats, hide_index=True)
+    with st.expander("Absolute pixel difference (amplified 4×)"):
+        difference = np.abs(original.astype(np.int16) - restored.astype(np.int16))
+        st.image(np.clip(difference * 4, 0, 255).astype(np.uint8), caption="Difference ×4", width="stretch")
+    st.download_button("Download compressed file", archive, "compressed_image.npz", "application/octet-stream", on_click="ignore")
+    st.download_button("Download reconstructed PNG", _png_bytes(restored), "reconstructed.png", "image/png", on_click="ignore")
+
+
 def run_spatial_filtering(img: np.ndarray, channels: dict) -> None:
     st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
 
@@ -462,6 +534,7 @@ TOOL_RUNNERS = {
     "Color channel analyzer and histogram": run_color_channel_analyzer,
     "Partial image reconstruction": run_partial_reconstruction,
     "Color space comparison": run_color_space_comparison,
+    "Compression and decompression": run_compression,
     "Filtering": run_spatial_filtering,
 }
 
@@ -484,8 +557,6 @@ if source_mode == "Upload":
     uploaded_file = st.sidebar.file_uploader("Choose an image", type=["png", "jpg", "jpeg", "bmp"])
     if uploaded_file is not None:
         img = load_uploaded_image(uploaded_file)
-    else:
-        st.info("Upload an image, or switch to the sample gallery in the sidebar.")
 
 else:
     sample_name = st.sidebar.selectbox("Sample image", list(SAMPLE_IMAGES.keys()))
@@ -499,7 +570,12 @@ st.sidebar.header("Tools")
 selected_tool = st.sidebar.radio("Choose a tool", TOOLS, label_visibility="collapsed")
 
 
+if selected_tool == "Compression and decompression":
+    run_compression(img, None)
+    st.stop()
+
 if img is None:
+    st.info("Upload an image, or switch to the sample gallery in the sidebar.")
     st.stop()
 
 
