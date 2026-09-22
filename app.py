@@ -2,17 +2,17 @@
 Run with:
     streamlit run app.py
 """
-import io
+import cv2
 
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import streamlit as st
-from PIL import Image
 
 from imgutil.core import *
 from imgutil.color_spaces import rgb_to_ycbcr
 from imgutil.compression import compress_image, decompress_image
+from imgutil.lossless import compress_png, decompress_png, encode_bmp
 from imgutil.histograms import *
 from imgutil.frequency import *
 from imgutil.filtering import (
@@ -101,13 +101,12 @@ def _shared_normalized_spectrum_to_rgb(spectrum: np.ndarray, vmin: float, vmax: 
 
 
 def load_uploaded_image(uploaded_file) -> np.ndarray:
-    """Read an uploaded file (via Streamlit's uploader) into a float64 RGB array.
-
-    Uses PIL instead of cv2.imread since the uploaded file is in-memory
-    bytes, not a filesystem path -- cv2.imread only reads from disk.
-    """
-    image = Image.open(io.BytesIO(uploaded_file.getvalue())).convert("RGB")
-    return np.array(image).astype(np.float64)
+    """Use the existing OpenCV dependency for general image-file import."""
+    encoded = np.frombuffer(uploaded_file.getvalue(), dtype=np.uint8)
+    bgr = cv2.imdecode(encoded, cv2.IMREAD_COLOR)
+    if bgr is None:
+        raise ValueError("Could not read this image file.")
+    return cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB).astype(np.float64)
 
 
 def make_single_channel_filtered_image(channels: dict, chan_fn, channel_name: str, **kwargs) -> np.ndarray:
@@ -170,6 +169,7 @@ TOOLS = [
     "Partial image reconstruction",
     "Color space comparison",
     "Compression and decompression",
+    "Lossless PNG compression",
     "Filtering",
 ]
 
@@ -340,10 +340,9 @@ def run_partial_reconstruction(img: np.ndarray, channels: dict) -> None:
     with result_col:
         st.image(preview, caption=f"Reconstructed: {' + '.join(selected)}", width="stretch")
 
-    png = io.BytesIO()
-    Image.fromarray(preview).save(png, format="PNG")
+    png = compress_png(preview)
     st.download_button(
-        "Download reconstructed image", data=png.getvalue(),
+        "Download reconstructed image", data=png,
         file_name=f"reconstructed_{''.join(selected)}.png", mime="image/png",
     )
 
@@ -401,9 +400,7 @@ def run_color_space_comparison(img: np.ndarray, channels: dict) -> None:
 
 
 def _png_bytes(img: np.ndarray) -> bytes:
-    buffer = io.BytesIO()
-    Image.fromarray(img).save(buffer, format="PNG")
-    return buffer.getvalue()
+    return compress_png(img)
 
 
 def run_compression(img, channels) -> None:
@@ -468,6 +465,63 @@ def run_compression(img, channels) -> None:
         st.image(np.clip(difference * 4, 0, 255).astype(np.uint8), caption="Difference ×4", width="stretch")
     st.download_button("Download compressed file", archive, "compressed_image.npz", "application/octet-stream", on_click="ignore")
     st.download_button("Download reconstructed PNG", _png_bytes(restored), "reconstructed.png", "image/png", on_click="ignore")
+
+
+def run_lossless_compression(img, channels) -> None:
+    st.subheader("Lossless PNG Compression and Decompression")
+    mode = st.radio("Operation", ["Compress", "Decompress"], horizontal=True, key="lossless_mode")
+    if mode == "Decompress":
+        st.caption("Upload an 8-bit RGB PNG from this tool. No original image is needed.")
+        uploaded = st.file_uploader("Lossless PNG", type=["png"], key="lossless_upload")
+        if uploaded is None:
+            return
+        try:
+            restored = decompress_png(uploaded.getvalue())
+        except ValueError as exc:
+            st.error(str(exc))
+            return
+        st.image(restored, caption="Decoded RGB pixels", width="stretch")
+        st.caption(f"{restored.shape[1]} × {restored.shape[0]} pixels · {restored.nbytes:,} raw RGB bytes")
+        st.download_button("Download uncompressed BMP", encode_bmp(restored), "decompressed.bmp", "image/bmp")
+        return
+
+    if img is None:
+        st.info("Upload an image or choose a sample in the sidebar to compress.")
+        return
+    st.caption(
+        "Our custom PNG encoder uses reversible row filters, LZ77, and Huffman coding to preserve every 8-bit RGB pixel. "
+        "Higher compression levels spend more effort reducing file size without changing image quality. "
+        "The app converts uploads to RGB and rounds sample values to 8-bit pixels before encoding; "
+        "source metadata, transparency, and original file bytes are not preserved."
+    )
+    with st.form("lossless_settings"):
+        level = st.slider("PNG compression level", 0, 9, 9)
+        submitted = st.form_submit_button("Compress and verify")
+    if not submitted:
+        return
+    original = np.rint(np.clip(img, 0, 255)).astype(np.uint8)
+    try:
+        with st.spinner("Encoding and verifying pixels with the custom PNG codec..."):
+            encoded = compress_png(original, level)
+            restored = decompress_png(encoded)
+    except ValueError as exc:
+        st.error(str(exc))
+        return
+    if not np.array_equal(original, restored):
+        st.error("Pixel verification failed. No download was generated.")
+        return
+    st.success("Verified: every decoded RGB pixel matches exactly. MSE = 0.")
+    left, right = st.columns(2)
+    with left:
+        st.image(original, caption="Original 8-bit RGB", width="stretch")
+    with right:
+        st.image(restored, caption="Decoded PNG — identical pixels", width="stretch")
+    raw_col, png_col, ratio_col = st.columns(3)
+    raw_col.metric("Raw RGB size", f"{original.nbytes:,} bytes")
+    png_col.metric("PNG size", f"{len(encoded):,} bytes")
+    ratio_col.metric("Raw RGB / PNG", f"{original.nbytes / len(encoded):.2f}×")
+    st.caption("A ratio below 1 means the PNG is larger than raw RGB. Small or noisy images may not shrink; PNG may also be larger than JPEG.")
+    st.download_button("Download lossless PNG", encoded, "lossless.png", "image/png", on_click="ignore")
 
 
 def run_spatial_filtering(img: np.ndarray, channels: dict) -> None:
@@ -535,6 +589,7 @@ TOOL_RUNNERS = {
     "Partial image reconstruction": run_partial_reconstruction,
     "Color space comparison": run_color_space_comparison,
     "Compression and decompression": run_compression,
+    "Lossless PNG compression": run_lossless_compression,
     "Filtering": run_spatial_filtering,
 }
 
@@ -556,7 +611,10 @@ img = None
 if source_mode == "Upload":
     uploaded_file = st.sidebar.file_uploader("Choose an image", type=["png", "jpg", "jpeg", "bmp"])
     if uploaded_file is not None:
-        img = load_uploaded_image(uploaded_file)
+        try:
+            img = load_uploaded_image(uploaded_file)
+        except ValueError as exc:
+            st.error(str(exc))
 
 else:
     sample_name = st.sidebar.selectbox("Sample image", list(SAMPLE_IMAGES.keys()))
@@ -570,8 +628,8 @@ st.sidebar.header("Tools")
 selected_tool = st.sidebar.radio("Choose a tool", TOOLS, label_visibility="collapsed")
 
 
-if selected_tool == "Compression and decompression":
-    run_compression(img, None)
+if selected_tool in ("Compression and decompression", "Lossless PNG compression"):
+    TOOL_RUNNERS[selected_tool](img, None)
     st.stop()
 
 if img is None:
