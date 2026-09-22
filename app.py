@@ -11,6 +11,7 @@ import streamlit as st
 from PIL import Image
 
 from imgutil.core import *
+from imgutil.color_spaces import rgb_to_ycbcr
 from imgutil.histograms import *
 from imgutil.frequency import *
 from imgutil.filtering import (
@@ -166,6 +167,7 @@ FILTER_CONFIGS = {
 TOOLS = [
     "Color channel analyzer and histogram",
     "Partial image reconstruction",
+    "Color space comparison",
     "Filtering",
 ]
 
@@ -344,6 +346,58 @@ def run_partial_reconstruction(img: np.ndarray, channels: dict) -> None:
     )
 
 
+def run_color_space_comparison(img: np.ndarray, channels: dict) -> None:
+    st.subheader("RGB vs YCbCr")
+    st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
+    st.caption(
+        "RGB stores red, green, and blue intensities. YCbCr separates luma (Y) "
+        "from blue-difference (Cb) and red-difference (Cr) color information. "
+        "This comparison uses full-range values from 0 to 255, with neutral chroma at 128. "
+        "Conversion alone does not compress the image."
+    )
+    converted = rgb_to_ycbcr(img)
+    ycbcr = {name: converted[:, :, i] for i, name in enumerate(("Y", "Cb", "Cr"))}
+    spaces = [("RGB", channels), ("YCbCr", ycbcr)]
+    st.caption("All channel previews use the same grayscale scale. Mid-gray Cb/Cr indicates neutral color.")
+    for label, space in spaces:
+        st.markdown(f"**{label} channels**")
+        for col, (name, channel) in zip(st.columns(3), space.items()):
+            with col:
+                st.image(np.rint(channel).astype(np.uint8), caption=name, width="stretch")
+
+    st.subheader("Channel Histograms")
+    fig, axes = plt.subplots(2, 3, figsize=(12, 6), sharex=True, sharey=True)
+    for row, (_, space) in enumerate(spaces):
+        for ax, (name, channel) in zip(axes[row], space.items()):
+            plot_single_channel_histogram(channel, name, ax=ax)
+            ax.set_xlim(0, 255)
+    fig.tight_layout()
+    st.pyplot(fig)
+    plt.close(fig)
+
+    st.subheader("Frequency Content")
+    center = st.checkbox("Remove channel mean before FFT", value=True, key="color_space_center")
+    st.caption(
+        "Removing the mean highlights spatial detail and removes constant offsets, including neutral chroma. "
+        "All six log-magnitude spectra share one color scale."
+    )
+    spectra = {
+        name: compute_magnitude_spectrum(_cached_fft(channel - channel.mean() if center else channel))
+        for _, space in spaces for name, channel in space.items()
+    }
+    vmin = min(float(s.min()) for s in spectra.values())
+    vmax = max(float(s.max()) for s in spectra.values())
+    fig, axes = plt.subplots(2, 3, figsize=(12, 7), layout="constrained")
+    for row, (_, space) in enumerate(spaces):
+        for ax, name in zip(axes[row], space):
+            plotted = ax.imshow(spectra[name], cmap="viridis", vmin=vmin, vmax=vmax)
+            ax.set_title(f"{name} spectrum")
+            ax.axis("off")
+    fig.colorbar(plotted, ax=axes.ravel().tolist(), label="log(1 + FFT magnitude)", shrink=0.8)
+    st.pyplot(fig)
+    plt.close(fig)
+
+
 def run_spatial_filtering(img: np.ndarray, channels: dict) -> None:
     st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
 
@@ -407,6 +461,7 @@ def run_spatial_filtering(img: np.ndarray, channels: dict) -> None:
 TOOL_RUNNERS = {
     "Color channel analyzer and histogram": run_color_channel_analyzer,
     "Partial image reconstruction": run_partial_reconstruction,
+    "Color space comparison": run_color_space_comparison,
     "Filtering": run_spatial_filtering,
 }
 
