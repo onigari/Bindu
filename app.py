@@ -3,6 +3,7 @@ Run with:
     streamlit run app.py
 """
 import cv2
+from pathlib import Path
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,6 +14,7 @@ from imgutil.core import *
 from imgutil.color_spaces import rgb_to_ycbcr
 from imgutil.compression import compress_image, decompress_image
 from imgutil.lossless import compress_png, decompress_png, encode_bmp
+from imgutil.restoration import restore_photo
 from imgutil.histograms import *
 from imgutil.frequency import *
 from imgutil.filtering import (
@@ -67,6 +69,8 @@ SAMPLE_IMAGES = {
     "Gradient + circle": make_gradient_circle_image,
     "Stripes": make_stripes_image,
     "Radial gradient": make_radial_image,
+    "Old photo (AI-generated example)": lambda: load_image_rgb(
+        str(Path(__file__).parent / "inputs" / "old_photo_example.png")),
 }
 
 
@@ -171,6 +175,7 @@ TOOLS = [
     "Compression and decompression",
     "Lossless PNG compression",
     "Filtering",
+    "Old Photo Restoration",
 ]
 
 
@@ -584,6 +589,70 @@ def run_spatial_filtering(img: np.ndarray, channels: dict) -> None:
     st.divider()
 
 
+@st.cache_data(show_spinner=False, max_entries=3)
+def _restore_preview(img, settings):
+    restored, mask = restore_photo(img, **settings)
+    return restored, mask, compress_png(restored, level=1)
+
+
+def run_old_photo_restoration(img, channels) -> None:
+    st.subheader("Old Photo Restoration")
+    st.caption("Switch each step on or off. Results update from the original photo, so adjustments never accumulate.")
+    if img.shape[0] * img.shape[1] > 4_000_000:
+        st.error("Please use a photo with at most 4 million pixels.")
+        return
+    settings = {}
+    left, right = st.columns(2)
+    with left:
+        settings["lines"] = st.toggle("Remove horizontal scan lines", key="restore_lines")
+        settings["period"] = st.slider("Scan-line spacing (pixels)", 2.0, 100.0, 12.0, 0.5,
+                                        disabled=not settings["lines"])
+        settings["line_strength"] = st.slider("Line removal strength", 0.0, 1.0, 0.8, 0.05,
+                                               disabled=not settings["lines"])
+        st.caption("Match spacing to the distance between repeating lines. Real horizontal details may also be affected.")
+        settings["tint"] = st.toggle("Correct yellow tint / color cast", key="restore_tint")
+        settings["tint_strength"] = st.slider("Color correction strength", 0.0, 1.0, 0.6, 0.05,
+                                               disabled=not settings["tint"])
+        st.caption("Automatic channel balancing assumes the scene averages toward neutral; reduce strength for naturally warm scenes.")
+        settings["contrast"] = st.toggle("Recover faded contrast", key="restore_contrast")
+        settings["contrast_strength"] = st.slider("Contrast recovery strength", 0.0, 1.0, 0.6, 0.05,
+                                                   disabled=not settings["contrast"])
+    with right:
+        settings["denoise"] = st.toggle("Reduce grain / noise", key="restore_denoise")
+        settings["noise_strength"] = st.slider("Noise reduction strength", 1.0, 20.0, 7.0, 1.0,
+                                                disabled=not settings["denoise"])
+        settings["scratches"] = st.toggle("Repair small scratches / dust", key="restore_scratches")
+        settings["scratch_threshold"] = st.slider("Scratch threshold (higher selects less)", 10, 150, 40,
+                                                   disabled=not settings["scratches"])
+        settings["scratch_size"] = st.select_slider("Scratch detection width (pixels)", [3, 5, 7],
+                                                    value=3, disabled=not settings["scratches"])
+        st.caption("Automatic repair can mistake eyes, hair, or texture for scratches. Inspect the mask below and disable this step if needed.")
+    st.caption("Order: scan lines → scratches → grain → color balance → contrast. Missing features cannot be recovered exactly.")
+    try:
+        with st.spinner("Restoring photo and preparing PNG..."):
+            restored, mask, png = _restore_preview(img, settings)
+    except (ValueError, cv2.error) as exc:
+        st.error(str(exc))
+        return
+    original = np.rint(np.clip(img, 0, 255)).astype(np.uint8)
+    before, after = st.columns(2)
+    before.image(original, caption="Original", width="stretch")
+    after.image(restored, caption="Restored preview", width="stretch")
+    if not any(settings[k] for k in ("lines", "tint", "contrast", "denoise", "scratches")):
+        st.info("All steps are off: the output matches the original RGB pixels.")
+    if settings["scratches"]:
+        with st.expander("Inspect scratch repair mask", expanded=True):
+            st.image(mask, caption="White pixels are selected for repair", clamp=True, width="stretch")
+            st.caption(f"Selected {np.mean(mask > 0):.2%} of pixels.")
+    with st.expander("Before / after wipe comparison"):
+        position = st.slider("Original on left · restored on right", 0, 100, 50)
+        split = round(original.shape[1] * position / 100)
+        wipe = restored.copy()
+        wipe[:, :split] = original[:, :split]
+        st.image(wipe, width="stretch")
+    st.download_button("Download restored PNG", png, "restored_photo.png", "image/png", on_click="ignore")
+
+
 TOOL_RUNNERS = {
     "Color channel analyzer and histogram": run_color_channel_analyzer,
     "Partial image reconstruction": run_partial_reconstruction,
@@ -591,6 +660,7 @@ TOOL_RUNNERS = {
     "Compression and decompression": run_compression,
     "Lossless PNG compression": run_lossless_compression,
     "Filtering": run_spatial_filtering,
+    "Old Photo Restoration": run_old_photo_restoration,
 }
 
 

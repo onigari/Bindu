@@ -1,5 +1,34 @@
 # Color Channel Analyzer and Image Compressor
 
+### Old Photo Restoration
+
+Choose **Old Photo Restoration** in the sidebar after loading a photo. Each
+step has its own on/off toggle and adjustable controls; all start off:
+
+- **Horizontal scan lines:** FFT filtering of row averages, with adjustable
+  spacing and strength. Match spacing to the distance between repeating bands.
+  Narrow frequency notches suppress that frequency and up to eight harmonics
+  while preserving the mean. Best for full-width, regularly spaced interference;
+  real horizontal structures may also be affected.
+- **Yellow tint / color cast:** bounded gray-world channel balancing with a
+  strength control. Naturally warm or strongly colored scenes may need less correction.
+- **Faded contrast:** percentile stretching of Lab lightness, blended by strength.
+- **Grain / noise:** non-local means denoising; higher strengths may soften detail.
+- **Small scratches / dust:** bright/dark morphological candidate detection and
+  Telea inpainting. Inspect the white repair-mask pixels before downloading;
+  texture and facial details can be mistaken for damage. Increase the threshold
+  to select fewer pixels. Masks covering over 10% of the photo are rejected.
+
+Processing always starts from the uploaded RGB pixels, in the order scan lines,
+scratches, grain, color balance, then contrast. Side-by-side and wipe comparisons
+show the result. Download uses the custom lossless PNG encoder. All steps off
+preserves the rounded 8-bit RGB pixels exactly. Photos are limited to 4 million
+pixels. This feature improves visible information; it cannot reconstruct large
+missing regions or guarantee original colors. No reference-free accuracy score
+is claimed. Tests use controlled synthetic damage to check restoration behavior.
+The sample gallery includes the AI-generated old photo shown in the conversation.
+It is an illustrative damaged input, not a clean reference or a restoration result.
+
 TODO:
 - [x] separate an input image into red, green, and blue channels
 - [x] display and compare the histograms of the separated channels
