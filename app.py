@@ -606,12 +606,16 @@ def run_old_photo_restoration(img, channels) -> None:
     settings = {}
     left, right = st.columns(2)
     with left:
-        settings["lines"] = st.toggle("Remove horizontal scan lines", key="restore_lines")
+        settings["lines"] = st.toggle("Remove white stripes / scan lines", key="restore_lines")
+        settings["line_mode"] = st.selectbox("Line removal method",
+            ["Automatic white stripes", "Periodic banding (FFT)"], disabled=not settings["lines"])
+        settings["line_threshold"] = st.slider("Stripe threshold (lower detects fainter lines)",
+            1, 40, 5, disabled=not settings["lines"] or settings["line_mode"] != "Automatic white stripes")
         settings["period"] = st.slider("Scan-line spacing (pixels)", 2.0, 100.0, 12.0, 0.5,
-                                        disabled=not settings["lines"])
-        settings["line_strength"] = st.slider("Line removal strength", 0.0, 1.0, 0.8, 0.05,
+                                        disabled=not settings["lines"] or settings["line_mode"] != "Periodic banding (FFT)")
+        settings["line_strength"] = st.slider("Line removal strength", 0.0, 1.0, 1.0, 0.05,
                                                disabled=not settings["lines"])
-        st.caption("Match spacing to the distance between repeating lines. Real horizontal details may also be affected.")
+        st.caption("Automatic mode repairs thin white stripes, including slight scan skew. Use FFT for evenly repeating bands. Inspect the mask for real horizontal details.")
         settings["tint"] = st.toggle("Correct yellow tint / color cast", key="restore_tint")
         settings["tint_strength"] = st.slider("Color correction strength", 0.0, 1.0, 0.6, 0.05,
                                                disabled=not settings["tint"])
@@ -623,11 +627,12 @@ def run_old_photo_restoration(img, channels) -> None:
         settings["denoise"] = st.toggle("Reduce grain / noise", key="restore_denoise")
         settings["noise_strength"] = st.slider("Noise reduction strength", 1.0, 20.0, 7.0, 1.0,
                                                 disabled=not settings["denoise"])
-        settings["scratches"] = st.toggle("Repair small scratches / dust", key="restore_scratches")
-        settings["scratch_threshold"] = st.slider("Scratch threshold (higher selects less)", 10, 150, 40,
+        settings["scratches"] = st.toggle("Repair white dots / scratches", key="restore_scratches")
+        settings["scratch_threshold"] = st.slider("Scratch threshold (higher selects less)", 10, 150, 30,
                                                    disabled=not settings["scratches"])
-        settings["scratch_size"] = st.select_slider("Scratch detection width (pixels)", [3, 5, 7],
-                                                    value=3, disabled=not settings["scratches"])
+        settings["scratch_size"] = st.select_slider("Scratch detection width (pixels)", [3, 5, 7, 11, 15, 21],
+                                                    value=11, disabled=not settings["scratches"])
+        settings["repair_dark_scratches"] = st.checkbox("Also repair dark scratches", disabled=not settings["scratches"])
         st.caption("Automatic repair can mistake eyes, hair, or texture for scratches. Inspect the mask below and disable this step if needed.")
     st.caption("Order: scan lines → scratches → grain → color balance → contrast. Missing features cannot be recovered exactly.")
     try:
@@ -642,8 +647,8 @@ def run_old_photo_restoration(img, channels) -> None:
     after.image(restored, caption="Restored preview", width="stretch")
     if not any(settings[k] for k in ("lines", "tint", "contrast", "denoise", "scratches")):
         st.info("All steps are off: the output matches the original RGB pixels.")
-    if settings["scratches"]:
-        with st.expander("Inspect scratch repair mask", expanded=True):
+    if settings["scratches"] or (settings["lines"] and settings["line_mode"] == "Automatic white stripes"):
+        with st.expander("Inspect stripe and scratch repair mask", expanded=False):
             st.image(mask, caption="White pixels are selected for repair", clamp=True, width="stretch")
             st.caption(f"Selected {np.mean(mask > 0):.2%} of pixels.")
     with st.expander("Before / after wipe comparison"):

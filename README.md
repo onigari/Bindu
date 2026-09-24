@@ -5,7 +5,10 @@
 Choose **Old Photo Restoration** in the sidebar after loading a photo. Each
 step has its own on/off toggle and adjustable controls; all start off:
 
-- **Horizontal scan lines:** FFT filtering of row averages, with adjustable
+- **White stripes / scan lines:** automatic detection and inpainting of thin,
+  bright horizontal marks, including slightly skewed and irregularly spaced
+  stripes. Lower the stripe threshold to detect fainter marks. Strength 1 fully
+  applies the repair. The optional **Periodic banding (FFT)** mode filters row averages, with adjustable
   spacing and strength. Match spacing to the distance between repeating bands.
   Narrow frequency notches suppress that frequency and up to eight harmonics
   while preserving the mean. Best for full-width, regularly spaced interference;
@@ -14,10 +17,13 @@ step has its own on/off toggle and adjustable controls; all start off:
   strength control. Naturally warm or strongly colored scenes may need less correction.
 - **Faded contrast:** percentile stretching of Lab lightness, blended by strength.
 - **Grain / noise:** non-local means denoising; higher strengths may soften detail.
-- **Small scratches / dust:** bright/dark morphological candidate detection and
+- **White dots / scratches:** bright morphological candidate detection and
   Telea inpainting. Inspect the white repair-mask pixels before downloading;
   texture and facial details can be mistaken for damage. Increase the threshold
-  to select fewer pixels. Masks covering over 10% of the photo are rejected.
+  to select fewer pixels. The default 11-pixel detection window handles larger
+  dots; choose a window wider than the damage. Repair includes a one-pixel fringe
+  to avoid white halos. Dark scratch detection is optional. Scratch masks covering
+  over 10% of the photo are rejected; automatic stripe masks have a separate 35% limit.
 
 Processing always starts from the uploaded RGB pixels, in the order scan lines,
 scratches, grain, color balance, then contrast. Side-by-side and wipe comparisons
