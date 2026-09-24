@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import streamlit as st
+from ui import apply_style, render_brand, render_header, render_welcome, TOOL_DETAILS
 
 from imgutil.core import *
 from imgutil.color_spaces import rgb_to_ycbcr
@@ -185,7 +186,8 @@ TOOLS = [
 
 def run_color_channel_analyzer(img: np.ndarray, channels: dict) -> None:
     """Stage A + B: channel separation and histograms."""
-    st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
+    with st.expander("Source image", expanded=False):
+        st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
 
     st.divider()
 
@@ -668,13 +670,14 @@ TOOL_RUNNERS = {
 # Streamlit app
 # ---------------------------------------------------------------------------
 
-st.set_page_config(page_title="Bindu - Image Tools", layout="wide")
-# st.title("imgutil")
-# st.caption("Interactive companion to the imgutil image-processing package")
+st.set_page_config(page_title="Bindu · Image workspace", page_icon="◉", layout="wide")
+apply_style()
+with st.sidebar:
+    render_brand()
 
 # --- Image source selection ---
-st.sidebar.header("Image source")
-source_mode = st.sidebar.radio("Load from", ["Upload", "Sample gallery"])
+st.sidebar.subheader("01 / Your image")
+source_mode = st.sidebar.radio("Load from", ["Upload", "Sample gallery"], key="source_mode", horizontal=True, label_visibility="collapsed")
 
 img = None
 
@@ -687,15 +690,26 @@ if source_mode == "Upload":
             st.error(str(exc))
 
 else:
-    sample_name = st.sidebar.selectbox("Sample image", list(SAMPLE_IMAGES.keys()))
-    img = SAMPLE_IMAGES[sample_name]()
+    sample_name = st.sidebar.selectbox("Sample image", list(SAMPLE_IMAGES.keys()), key="sample_name")
+    try:
+        img = SAMPLE_IMAGES[sample_name]()
+    except (ValueError, OSError) as exc:
+        st.error(f"Could not load the sample: {exc}")
 
 # st.sidebar.caption(f"Image shape: {img.shape[0]} x {img.shape[1]}")
 
 # --- Tool selection ---
 st.sidebar.divider()
-st.sidebar.header("Tools")
-selected_tool = st.sidebar.radio("Choose a tool", TOOLS, label_visibility="collapsed")
+st.sidebar.subheader("02 / Explore tools")
+selected_tool = st.sidebar.radio("Choose a tool", TOOLS, format_func=lambda tool: TOOL_DETAILS[tool][0], label_visibility="collapsed")
+st.sidebar.divider()
+st.sidebar.caption("A little curiosity. A new perspective.")
+st.sidebar.caption("Bindu · Color, detail & discovery")
+
+render_header(selected_tool)
+if img is not None:
+    with st.expander(f"Active image · {img.shape[1]:,} × {img.shape[0]:,} px · RGB", expanded=False):
+        st.caption("Change your image in the sidebar. All tools use this source image.")
 
 
 if selected_tool in ("Compression and decompression", "Lossless PNG compression"):
@@ -703,7 +717,7 @@ if selected_tool in ("Compression and decompression", "Lossless PNG compression"
     st.stop()
 
 if img is None:
-    st.info("Upload an image, or switch to the sample gallery in the sidebar.")
+    render_welcome(SAMPLE_IMAGES)
     st.stop()
 
 
