@@ -1,5 +1,40 @@
 # Color Channel Analyzer and Image Compressor
 
+### Old Photo Restoration
+
+Choose **Old Photo Restoration** in the sidebar after loading a photo. Each
+step has its own on/off toggle and adjustable controls; all start off:
+
+- **White stripes / scan lines:** automatic detection and inpainting of thin,
+  bright horizontal marks, including slightly skewed and irregularly spaced
+  stripes. Lower the stripe threshold to detect fainter marks. Strength 1 fully
+  applies the repair. The optional **Periodic banding (FFT)** mode filters row averages, with adjustable
+  spacing and strength. Match spacing to the distance between repeating bands.
+  Narrow frequency notches suppress that frequency and up to eight harmonics
+  while preserving the mean. Best for full-width, regularly spaced interference;
+  real horizontal structures may also be affected.
+- **Yellow tint / color cast:** bounded gray-world channel balancing with a
+  strength control. Naturally warm or strongly colored scenes may need less correction.
+- **Faded contrast:** percentile stretching of Lab lightness, blended by strength.
+- **Grain / noise:** non-local means denoising; higher strengths may soften detail.
+- **White dots / scratches:** bright morphological candidate detection and
+  Telea inpainting. Inspect the white repair-mask pixels before downloading;
+  texture and facial details can be mistaken for damage. Increase the threshold
+  to select fewer pixels. The default 11-pixel detection window handles larger
+  dots; choose a window wider than the damage. Repair includes a one-pixel fringe
+  to avoid white halos. Dark scratch detection is optional. Scratch masks covering
+  over 10% of the photo are rejected; automatic stripe masks have a separate 35% limit.
+
+Processing always starts from the uploaded RGB pixels, in the order scan lines,
+scratches, grain, color balance, then contrast. Side-by-side and wipe comparisons
+show the result. Download uses the custom lossless PNG encoder. All steps off
+preserves the rounded 8-bit RGB pixels exactly. Photos are limited to 4 million
+pixels. This feature improves visible information; it cannot reconstruct large
+missing regions or guarantee original colors. No reference-free accuracy score
+is claimed. Tests use controlled synthetic damage to check restoration behavior.
+The sample gallery includes the AI-generated old photo shown in the conversation.
+It is an illustrative damaged input, not a clean reference or a restoration result.
+
 TODO:
 - [x] separate an input image into red, green, and blue channels
 - [x] display and compare the histograms of the separated channels
@@ -9,6 +44,7 @@ TODO:
 - [x] compare color spaces (e.g. RGB vs YCbCr)
 - [x] compress images via harmonic energy pruning
 - [x] reconstruct a compressed/pruned image and compare it against the original image
+- [x] lossless PNG compression and standalone decompression
 
 Run `streamlit run app.py`, upload an image or choose a sample, then select
 **Partial image reconstruction** in the sidebar. Choose R, G, B, R+G, R+B,
@@ -38,3 +74,61 @@ Energy retention is not a compression ratio; archives may exceed PNG/JPEG or
 even raw RGB size. The displayed ratio compares raw 8-bit RGB bytes with archive
 bytes, and a separately encoded original PNG size is also shown. Images are
 limited to 4 million pixels.
+
+### Lossless PNG compression and decompression
+
+Select **Lossless PNG compression** in the sidebar:
+
+1. Choose **Compress**, upload an image or select a sample, and set the PNG
+   compression level (0–9). Higher levels spend more effort compressing; every
+   level preserves the same pixels.
+2. Click **Compress and verify**. The tool encodes PNG using reversible row
+   filters and DEFLATE, decodes the result, and checks exact pixel equality.
+   It shows both images, raw RGB size, PNG size, and the raw-to-PNG size ratio.
+3. Download the lossless PNG.
+4. Choose **Decompress** and upload that PNG. No original image is required.
+   Preview the decoded pixels and download an uncompressed BMP.
+
+Lossless means exact preservation of the **8-bit RGB pixels supplied to the
+encoder**, not the original uploaded file bytes. The existing image loader
+converts uploads to RGB (discarding alpha), and floating-point sample values
+are rounded before encoding. Metadata and original color profiles are not
+preserved. Decoding accepts non-interlaced, single-frame 8-bit RGB PNGs without
+transparency; other PNG modes are rejected rather than silently converted.
+The limits are 4 million pixels and 64 MB per compressed PNG upload.
+
+Unlike FFT pruning, PNG discards no pixel information. File sizes depend on
+image content: small or noisy images may grow, and PNG can be larger than JPEG.
+The displayed ratio compares PNG bytes with raw RGB bytes, not the original
+uploaded file size. An uncompressed BMP also includes a header and row padding.
+
+### Custom codec implementation
+
+The lossless tool implements the algorithms directly, without Pillow, OpenCV
+encoding/decoding, or a compression-library call in its PNG codec:
+
+- `imgutil/lossless.py`: PNG chunk parsing/writing, CRC-32 checksums, all five
+  row filters (None, Sub, Up, Average, Paeth), adaptive filter selection,
+  reversing filters, and uncompressed 24-bit BMP export.
+- `imgutil/deflate.py`: bit packing, a 32 KiB LZ77 sliding window, canonical
+  fixed Huffman encoding, stored-block fallback, zlib framing, and Adler-32.
+  The decoder also reads dynamic Huffman tables and multiple DEFLATE blocks.
+- Level 0 writes stored DEFLATE blocks. Levels 1–9 increase the number of
+  previous matches searched; all preserve identical pixels. This encoder
+  uses fixed Huffman codes rather than generating dynamic tables. Higher
+  levels do not guarantee a smaller file for every input.
+
+This educational Python implementation is slower and may produce larger files
+than optimized codecs. NumPy handles arrays; it does not perform compression.
+General image imports (such as JPEG) use the existing OpenCV dependency. All
+PNG downloads use the custom encoder. The application has no direct Pillow
+calls, although third-party UI/plotting packages may depend on Pillow internally.
+The separate Fourier `.npz` archive tool continues to use NumPy's ZIP storage.
+
+Run `python -m unittest discover -s tests -v` to check pixel preservation,
+all PNG filters, checksum failures, BMP layout, and compatibility with stored,
+fixed, and dynamic DEFLATE streams. Standard-library `zlib` is used only as an
+independent reference in tests, never by the custom codec.
+
+Format references: [PNG specification](https://www.w3.org/TR/png/) and
+[DEFLATE RFC 1951](https://www.rfc-editor.org/rfc/rfc1951).

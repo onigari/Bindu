@@ -2,17 +2,20 @@
 Run with:
     streamlit run app.py
 """
-import io
+import cv2
+from pathlib import Path
 
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import streamlit as st
-from PIL import Image
+from ui import apply_style, render_brand, render_header, render_welcome, TOOL_DETAILS
 
 from imgutil.core import *
 from imgutil.color_spaces import rgb_to_ycbcr
 from imgutil.compression import compress_image, decompress_image
+from imgutil.lossless import compress_png, decompress_png, encode_bmp
+from imgutil.restoration import restore_photo
 from imgutil.histograms import *
 from imgutil.frequency import *
 from imgutil.filtering import (
@@ -67,6 +70,8 @@ SAMPLE_IMAGES = {
     "Gradient + circle": make_gradient_circle_image,
     "Stripes": make_stripes_image,
     "Radial gradient": make_radial_image,
+    "Old photo (AI-generated example)": lambda: load_image_rgb(
+        str(Path(__file__).parent / "inputs" / "old_photo_example.png")),
 }
 
 
@@ -101,13 +106,12 @@ def _shared_normalized_spectrum_to_rgb(spectrum: np.ndarray, vmin: float, vmax: 
 
 
 def load_uploaded_image(uploaded_file) -> np.ndarray:
-    """Read an uploaded file (via Streamlit's uploader) into a float64 RGB array.
-
-    Uses PIL instead of cv2.imread since the uploaded file is in-memory
-    bytes, not a filesystem path -- cv2.imread only reads from disk.
-    """
-    image = Image.open(io.BytesIO(uploaded_file.getvalue())).convert("RGB")
-    return np.array(image).astype(np.float64)
+    """Use the existing OpenCV dependency for general image-file import."""
+    encoded = np.frombuffer(uploaded_file.getvalue(), dtype=np.uint8)
+    bgr = cv2.imdecode(encoded, cv2.IMREAD_COLOR)
+    if bgr is None:
+        raise ValueError("Could not read this image file.")
+    return cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB).astype(np.float64)
 
 
 def make_single_channel_filtered_image(channels: dict, chan_fn, channel_name: str, **kwargs) -> np.ndarray:
@@ -170,7 +174,9 @@ TOOLS = [
     "Partial image reconstruction",
     "Color space comparison",
     "Compression and decompression",
+    "Lossless PNG compression",
     "Filtering",
+    "Old Photo Restoration",
 ]
 
 
@@ -180,7 +186,8 @@ TOOLS = [
 
 def run_color_channel_analyzer(img: np.ndarray, channels: dict) -> None:
     """Stage A + B: channel separation and histograms."""
-    st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
+    with st.expander("Source image", expanded=False):
+        st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
 
     st.divider()
 
@@ -405,9 +412,7 @@ def run_color_space_comparison(img: np.ndarray, channels: dict) -> None:
 
 
 def _png_bytes(img: np.ndarray) -> bytes:
-    buffer = io.BytesIO()
-    Image.fromarray(img).save(buffer, format="PNG")
-    return buffer.getvalue()
+    return compress_png(img)
 
 
 def run_compression(img, channels) -> None:
@@ -474,6 +479,63 @@ def run_compression(img, channels) -> None:
     st.download_button("Download reconstructed PNG", _png_bytes(restored), "reconstructed.png", "image/png", on_click="ignore")
 
 
+def run_lossless_compression(img, channels) -> None:
+    st.subheader("Lossless PNG Compression and Decompression")
+    mode = st.radio("Operation", ["Compress", "Decompress"], horizontal=True, key="lossless_mode")
+    if mode == "Decompress":
+        st.caption("Upload an 8-bit RGB PNG from this tool. No original image is needed.")
+        uploaded = st.file_uploader("Lossless PNG", type=["png"], key="lossless_upload")
+        if uploaded is None:
+            return
+        try:
+            restored = decompress_png(uploaded.getvalue())
+        except ValueError as exc:
+            st.error(str(exc))
+            return
+        st.image(restored, caption="Decoded RGB pixels", width="stretch")
+        st.caption(f"{restored.shape[1]} × {restored.shape[0]} pixels · {restored.nbytes:,} raw RGB bytes")
+        st.download_button("Download uncompressed BMP", encode_bmp(restored), "decompressed.bmp", "image/bmp")
+        return
+
+    if img is None:
+        st.info("Upload an image or choose a sample in the sidebar to compress.")
+        return
+    st.caption(
+        "Our custom PNG encoder uses reversible row filters, LZ77, and Huffman coding to preserve every 8-bit RGB pixel. "
+        "Higher compression levels spend more effort reducing file size without changing image quality. "
+        "The app converts uploads to RGB and rounds sample values to 8-bit pixels before encoding; "
+        "source metadata, transparency, and original file bytes are not preserved."
+    )
+    with st.form("lossless_settings"):
+        level = st.slider("PNG compression level", 0, 9, 9)
+        submitted = st.form_submit_button("Compress and verify")
+    if not submitted:
+        return
+    original = np.rint(np.clip(img, 0, 255)).astype(np.uint8)
+    try:
+        with st.spinner("Encoding and verifying pixels with the custom PNG codec..."):
+            encoded = compress_png(original, level)
+            restored = decompress_png(encoded)
+    except ValueError as exc:
+        st.error(str(exc))
+        return
+    if not np.array_equal(original, restored):
+        st.error("Pixel verification failed. No download was generated.")
+        return
+    st.success("Verified: every decoded RGB pixel matches exactly. MSE = 0.")
+    left, right = st.columns(2)
+    with left:
+        st.image(original, caption="Original 8-bit RGB", width="stretch")
+    with right:
+        st.image(restored, caption="Decoded PNG — identical pixels", width="stretch")
+    raw_col, png_col, ratio_col = st.columns(3)
+    raw_col.metric("Raw RGB size", f"{original.nbytes:,} bytes")
+    png_col.metric("PNG size", f"{len(encoded):,} bytes")
+    ratio_col.metric("Raw RGB / PNG", f"{original.nbytes / len(encoded):.2f}×")
+    st.caption("A ratio below 1 means the PNG is larger than raw RGB. Small or noisy images may not shrink; PNG may also be larger than JPEG.")
+    st.download_button("Download lossless PNG", encoded, "lossless.png", "image/png", on_click="ignore")
+
+
 def run_spatial_filtering(img: np.ndarray, channels: dict) -> None:
     st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
 
@@ -534,12 +596,83 @@ def run_spatial_filtering(img: np.ndarray, channels: dict) -> None:
     st.divider()
 
 
+@st.cache_data(show_spinner=False, max_entries=3)
+def _restore_preview(img, settings):
+    restored, mask = restore_photo(img, **settings)
+    return restored, mask, compress_png(restored, level=1)
+
+
+def run_old_photo_restoration(img, channels) -> None:
+    st.subheader("Old Photo Restoration")
+    st.caption("Switch each step on or off. Results update from the original photo, so adjustments never accumulate.")
+    if img.shape[0] * img.shape[1] > 4_000_000:
+        st.error("Please use a photo with at most 4 million pixels.")
+        return
+    settings = {}
+    left, right = st.columns(2)
+    with left:
+        settings["lines"] = st.toggle("Remove white stripes / scan lines", key="restore_lines")
+        settings["line_mode"] = st.selectbox("Line removal method",
+            ["Automatic white stripes", "Periodic banding (FFT)"], disabled=not settings["lines"])
+        settings["line_threshold"] = st.slider("Stripe threshold (lower detects fainter lines)",
+            1, 40, 5, disabled=not settings["lines"] or settings["line_mode"] != "Automatic white stripes")
+        settings["period"] = st.slider("Scan-line spacing (pixels)", 2.0, 100.0, 12.0, 0.5,
+                                        disabled=not settings["lines"] or settings["line_mode"] != "Periodic banding (FFT)")
+        settings["line_strength"] = st.slider("Line removal strength", 0.0, 1.0, 1.0, 0.05,
+                                               disabled=not settings["lines"])
+        st.caption("Automatic mode repairs thin white stripes, including slight scan skew. Use FFT for evenly repeating bands. Inspect the mask for real horizontal details.")
+        settings["tint"] = st.toggle("Correct yellow tint / color cast", key="restore_tint")
+        settings["tint_strength"] = st.slider("Color correction strength", 0.0, 1.0, 0.6, 0.05,
+                                               disabled=not settings["tint"])
+        st.caption("Automatic channel balancing assumes the scene averages toward neutral; reduce strength for naturally warm scenes.")
+        settings["contrast"] = st.toggle("Recover faded contrast", key="restore_contrast")
+        settings["contrast_strength"] = st.slider("Contrast recovery strength", 0.0, 1.0, 0.6, 0.05,
+                                                   disabled=not settings["contrast"])
+    with right:
+        settings["denoise"] = st.toggle("Reduce grain / noise", key="restore_denoise")
+        settings["noise_strength"] = st.slider("Noise reduction strength", 1.0, 20.0, 7.0, 1.0,
+                                                disabled=not settings["denoise"])
+        settings["scratches"] = st.toggle("Repair white dots / scratches", key="restore_scratches")
+        settings["scratch_threshold"] = st.slider("Scratch threshold (higher selects less)", 10, 150, 30,
+                                                   disabled=not settings["scratches"])
+        settings["scratch_size"] = st.select_slider("Scratch detection width (pixels)", [3, 5, 7, 11, 15, 21],
+                                                    value=11, disabled=not settings["scratches"])
+        settings["repair_dark_scratches"] = st.checkbox("Also repair dark scratches", disabled=not settings["scratches"])
+        st.caption("Automatic repair can mistake eyes, hair, or texture for scratches. Inspect the mask below and disable this step if needed.")
+    st.caption("Order: scan lines → scratches → grain → color balance → contrast. Missing features cannot be recovered exactly.")
+    try:
+        with st.spinner("Restoring photo and preparing PNG..."):
+            restored, mask, png = _restore_preview(img, settings)
+    except (ValueError, cv2.error) as exc:
+        st.error(str(exc))
+        return
+    original = np.rint(np.clip(img, 0, 255)).astype(np.uint8)
+    before, after = st.columns(2)
+    before.image(original, caption="Original", width="stretch")
+    after.image(restored, caption="Restored preview", width="stretch")
+    if not any(settings[k] for k in ("lines", "tint", "contrast", "denoise", "scratches")):
+        st.info("All steps are off: the output matches the original RGB pixels.")
+    if settings["scratches"] or (settings["lines"] and settings["line_mode"] == "Automatic white stripes"):
+        with st.expander("Inspect stripe and scratch repair mask", expanded=False):
+            st.image(mask, caption="White pixels are selected for repair", clamp=True, width="stretch")
+            st.caption(f"Selected {np.mean(mask > 0):.2%} of pixels.")
+    with st.expander("Before / after wipe comparison"):
+        position = st.slider("Original on left · restored on right", 0, 100, 50)
+        split = round(original.shape[1] * position / 100)
+        wipe = restored.copy()
+        wipe[:, :split] = original[:, :split]
+        st.image(wipe, width="stretch")
+    st.download_button("Download restored PNG", png, "restored_photo.png", "image/png", on_click="ignore")
+
+
 TOOL_RUNNERS = {
     "Color channel analyzer and histogram": run_color_channel_analyzer,
     "Partial image reconstruction": run_partial_reconstruction,
     "Color space comparison": run_color_space_comparison,
     "Compression and decompression": run_compression,
+    "Lossless PNG compression": run_lossless_compression,
     "Filtering": run_spatial_filtering,
+    "Old Photo Restoration": run_old_photo_restoration,
 }
 
 
@@ -547,39 +680,54 @@ TOOL_RUNNERS = {
 # Streamlit app
 # ---------------------------------------------------------------------------
 
-st.set_page_config(page_title="Bindu - Image Tools", layout="wide")
-# st.title("imgutil")
-# st.caption("Interactive companion to the imgutil image-processing package")
+st.set_page_config(page_title="Bindu · Image workspace", page_icon="◉", layout="wide")
+apply_style()
+with st.sidebar:
+    render_brand()
 
 # --- Image source selection ---
-st.sidebar.header("Image source")
-source_mode = st.sidebar.radio("Load from", ["Upload", "Sample gallery"])
+st.sidebar.subheader("01 / Your image")
+source_mode = st.sidebar.radio("Load from", ["Upload", "Sample gallery"], key="source_mode", horizontal=True, label_visibility="collapsed")
 
 img = None
 
 if source_mode == "Upload":
     uploaded_file = st.sidebar.file_uploader("Choose an image", type=["png", "jpg", "jpeg", "bmp"])
     if uploaded_file is not None:
-        img = load_uploaded_image(uploaded_file)
+        try:
+            img = load_uploaded_image(uploaded_file)
+        except ValueError as exc:
+            st.error(str(exc))
 
 else:
-    sample_name = st.sidebar.selectbox("Sample image", list(SAMPLE_IMAGES.keys()))
-    img = SAMPLE_IMAGES[sample_name]()
+    sample_name = st.sidebar.selectbox("Sample image", list(SAMPLE_IMAGES.keys()), key="sample_name")
+    try:
+        img = SAMPLE_IMAGES[sample_name]()
+    except (ValueError, OSError) as exc:
+        st.error(f"Could not load the sample: {exc}")
 
 # st.sidebar.caption(f"Image shape: {img.shape[0]} x {img.shape[1]}")
 
 # --- Tool selection ---
 st.sidebar.divider()
-st.sidebar.header("Tools")
-selected_tool = st.sidebar.radio("Choose a tool", TOOLS, label_visibility="collapsed")
+st.sidebar.subheader("02 / Explore tools")
+selected_tool = st.sidebar.radio("Choose a tool", TOOLS, format_func=lambda tool: TOOL_DETAILS[tool][0], label_visibility="collapsed")
+st.sidebar.divider()
+st.sidebar.caption("A little curiosity. A new perspective.")
+st.sidebar.caption("Bindu · Color, detail & discovery")
+
+render_header(selected_tool)
+if img is not None:
+    with st.expander(f"Active image · {img.shape[1]:,} × {img.shape[0]:,} px · RGB", expanded=False):
+        st.caption("Change your image in the sidebar. All tools use this source image.")
 
 
-if selected_tool == "Compression and decompression":
-    run_compression(img, None)
+if selected_tool in ("Compression and decompression", "Lossless PNG compression"):
+    TOOL_RUNNERS[selected_tool](img, None)
     st.stop()
 
 if img is None:
-    st.info("Upload an image, or switch to the sample gallery in the sidebar.")
+    render_welcome(SAMPLE_IMAGES)
     st.stop()
 
 
