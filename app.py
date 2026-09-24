@@ -320,32 +320,36 @@ def render_frequency_content(channels: dict, names: list) -> None:
 
 def run_partial_reconstruction(img: np.ndarray, channels: dict) -> None:
     st.subheader("Partial Image Reconstruction")
-    st.caption("Combine one or two RGB channels using their frequency content. Omitted channels are set to zero.")
-    selected = st.multiselect(
-        "Channels to reconstruct", ["R", "G", "B"], default=["R", "G"],
-        max_selections=2,
-    )
-    if not selected:
-        st.info("Select one or two channels to reconstruct an image.")
-        return
+    st.caption("Reconstruct using only a subset of RGB channels.")
 
-    selected = [name for name in "RGB" if name in selected]
-    spectra = {name: _cached_fft(channels[name]) for name in selected}
-    reconstructed = reconstruct_partial_image(spectra)
-    # Round inverse-FFT residue before conversion to avoid losing one intensity level.
-    preview = np.rint(np.clip(reconstructed, 0, 255)).astype(np.uint8)
-    original_col, result_col = st.columns(2)
-    with original_col:
-        st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width="stretch")
-    with result_col:
-        st.image(preview, caption=f"Reconstructed: {' + '.join(selected)}", width="stretch")
+    st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
 
-    png = io.BytesIO()
-    Image.fromarray(preview).save(png, format="PNG")
-    st.download_button(
-        "Download reconstructed image", data=png.getvalue(),
-        file_name=f"reconstructed_{''.join(selected)}.png", mime="image/png",
-    )
+    st.divider()
+
+    # Pre-compute FFTs once
+    channel_ffts = {name: _cached_fft(channels[name]) for name in "RGB"}
+
+    def _render_combo(selected: list, col) -> None:
+        spectra = {name: channel_ffts[name] for name in selected}
+        reconstructed = reconstruct_partial_image(spectra)
+        preview = np.rint(np.clip(reconstructed, 0, 255)).astype(np.uint8)
+        label = " + ".join(selected)
+        with col:
+            st.image(preview, caption=label, width="stretch")
+
+    # --- Row 1: all 2-channel combinations ---
+    st.markdown("**Two channels**")
+    two_channel_combos = [["R", "G"], ["R", "B"], ["G", "B"]]
+    cols = st.columns(3)
+    for combo, col in zip(two_channel_combos, cols):
+        _render_combo(combo, col)
+
+    # --- Row 2: individual channels ---
+    st.markdown("**One channel**")
+    one_channel_combos = [["R"], ["G"], ["B"]]
+    cols = st.columns(3)
+    for combo, col in zip(one_channel_combos, cols):
+        _render_combo(combo, col)
 
 
 def run_color_space_comparison(img: np.ndarray, channels: dict) -> None:
