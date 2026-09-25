@@ -22,6 +22,7 @@ from imgutil.core import *
 from imgutil.color_spaces import rgb_to_ycbcr
 from imgutil.compression import compress_image, decompress_image
 from imgutil.lossless import compress_png, decompress_png, encode_bmp
+from imgutil.wavelet import compress_wavelet, decompress_wavelet
 from imgutil.restoration import restore_photo
 from imgutil.noise import add_noise, remove_noise, rgb_pixels
 from imgutil.histograms import *
@@ -182,7 +183,7 @@ TOOLS = [
     "Partial image reconstruction",
     "Color space comparison",
     "Compression and decompression",
-    "Lossless PNG compression",
+    "Lossless wavelet compression",
     "Filtering",
     "White Scratch Removal",
     "Noise addition and removal",
@@ -519,21 +520,22 @@ def run_compression(img, channels) -> None:
 
 
 def run_lossless_compression(img, channels) -> None:
-    st.subheader("Lossless PNG Compression and Decompression")
+    st.subheader("Lossless Wavelet Compression and Decompression")
     mode = st.radio("Operation", ["Compress", "Decompress"], horizontal=True, key="lossless_mode")
     if mode == "Decompress":
-        st.caption("Upload an 8-bit RGB PNG from this tool. No original image is needed.")
+        st.caption("Upload a wavelet .iwv archive from this tool, or a legacy 8-bit RGB PNG. No original image is needed.")
         with st.sidebar:
             st.subheader("Your compressed image")
-            uploaded = st.file_uploader("Lossless PNG", type=["png"], key="lossless_upload")
+            uploaded = st.file_uploader("Lossless archive", type=["iwv", "png"], key="lossless_upload")
             reference = st.file_uploader("Original image for comparison (optional)", type=["png", "jpg", "jpeg", "bmp"], key="lossless_reference")
         if uploaded is None:
             st.session_state.pop(f"approved_{selected_tool}_decompress", None)
             return
-        if not tool_ready("Decompress PNG", uploaded.getvalue(), key="decompress"):
+        if not tool_ready("Decompress image", uploaded.getvalue(), key="decompress"):
             return
         try:
-            restored = decompress_png(uploaded.getvalue())
+            data = uploaded.getvalue()
+            restored = decompress_png(data) if data.startswith(b'\x89PNG\r\n\x1a\n') else decompress_wavelet(data)
         except ValueError as exc:
             st.error(str(exc))
             return
@@ -546,21 +548,24 @@ def run_lossless_compression(img, channels) -> None:
     if img is None:
         return
     st.caption(
-        "Our custom PNG encoder uses reversible row filters, LZ77, and Huffman coding to preserve every 8-bit RGB pixel. "
+        "Reversible integer Haar wavelets separate the image into averages and detail signals. "
+        "Every coefficient is retained and compressed with LZ77 and Huffman coding, preserving every 8-bit RGB pixel. "
         "Higher compression levels spend more effort reducing file size without changing image quality. "
         "The app converts uploads to RGB and rounds sample values to 8-bit pixels before encoding; "
         "source metadata, transparency, and original file bytes are not preserved."
     )
     with st.form("lossless_settings"):
-        level = st.slider("PNG compression level", 0, 9, 9)
+        levels = st.slider("Wavelet decomposition levels", 1, 8, 4)
+        level = st.slider("Compression effort", 0, 9, 9)
+        st.caption("More wavelet levels analyze larger image regions; they do not change quality or guarantee a smaller file. Downloads use the custom .iwv format.")
         submitted = st.form_submit_button("Compress and verify")
     if not submitted:
         return
     original = np.rint(np.clip(img, 0, 255)).astype(np.uint8)
     try:
-        with st.spinner("Encoding and verifying pixels with the custom PNG codec..."):
-            encoded = compress_png(original, level)
-            restored = decompress_png(encoded)
+        with st.spinner("Applying integer wavelets, compressing, and verifying every pixel..."):
+            encoded = compress_wavelet(original, level=level, levels=levels)
+            restored = decompress_wavelet(encoded)
     except ValueError as exc:
         st.error(str(exc))
         return
@@ -572,14 +577,14 @@ def run_lossless_compression(img, channels) -> None:
     with left:
         st.image(original, caption="Original 8-bit RGB", width="stretch")
     with right:
-        st.image(restored, caption="Decoded PNG — identical pixels", width="stretch")
-    queue_comparison(original, restored, after_label="Decoded PNG · identical pixels")
+        st.image(restored, caption="Decoded wavelet archive — identical pixels", width="stretch")
+    queue_comparison(original, restored, after_label="Decoded wavelet · identical pixels")
     raw_col, png_col, ratio_col = st.columns(3)
     raw_col.metric("Raw RGB size", f"{original.nbytes:,} bytes")
-    png_col.metric("PNG size", f"{len(encoded):,} bytes")
-    ratio_col.metric("Raw RGB / PNG", f"{original.nbytes / len(encoded):.2f}×")
-    st.caption("A ratio below 1 means the PNG is larger than raw RGB. Small or noisy images may not shrink; PNG may also be larger than JPEG.")
-    st.download_button("Download lossless PNG", encoded, "lossless.png", "image/png", on_click="ignore")
+    png_col.metric("Wavelet archive size", f"{len(encoded):,} bytes")
+    ratio_col.metric("Raw RGB / archive", f"{original.nbytes / len(encoded):.2f}×")
+    st.caption("A ratio below 1 means the archive is larger than raw RGB. Small or noisy images may grow. Open .iwv files with this tool's Decompress operation.")
+    st.download_button("Download lossless wavelet archive", encoded, "lossless.iwv", "application/octet-stream", on_click="ignore")
 
 
 def render_kernel_visualizer(filter_name, params):
@@ -789,7 +794,7 @@ TOOL_RUNNERS = {
     "Partial image reconstruction": run_partial_reconstruction,
     "Color space comparison": run_color_space_comparison,
     "Compression and decompression": run_compression,
-    "Lossless PNG compression": run_lossless_compression,
+    "Lossless wavelet compression": run_lossless_compression,
     "Filtering": run_spatial_filtering,
     "White Scratch Removal": run_white_scratch_removal,
     "Noise addition and removal": run_noise_tool,
@@ -820,7 +825,7 @@ if st.session_state.get("active_tool") != selected_tool:
 # Keep the shared uploader mounted, including in decompression mode, so
 # Streamlit retains its file when navigating between tools.
 img = image_picker(selected_tool)
-if img is not None or selected_tool in ("Compression and decompression", "Lossless PNG compression"):
+if img is not None or selected_tool in ("Compression and decompression", "Lossless wavelet compression"):
     TOOL_RUNNERS[selected_tool](img, None)
 
 

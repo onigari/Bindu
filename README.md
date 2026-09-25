@@ -31,7 +31,7 @@ TODO:
 - [x] compare color spaces (e.g. RGB vs YCbCr)
 - [x] compress images via harmonic energy pruning
 - [x] reconstruct a compressed/pruned image and compare it against the original image
-- [x] lossless PNG compression and standalone decompression
+- [x] lossless integer wavelet compression and standalone decompression
 
 Run `streamlit run app.py`, upload an image or choose a sample, then select
 **Partial image reconstruction** in the sidebar. Choose R, G, B, R+G, R+B,
@@ -62,37 +62,52 @@ even raw RGB size. The displayed ratio compares raw 8-bit RGB bytes with archive
 bytes, and a separately encoded original PNG size is also shown. Images are
 limited to 4 million pixels.
 
-### Lossless PNG compression and decompression
+### Lossless wavelet compression and decompression
 
-Select **Lossless PNG compression** in the sidebar:
+Select **Lossless wavelet compression** in the sidebar:
 
-1. Choose **Compress**, upload an image or select a sample, and set the PNG
-   compression level (0–9). Higher levels spend more effort compressing; every
-   level preserves the same pixels.
-2. Click **Compress and verify**. The tool encodes PNG using reversible row
-   filters and DEFLATE, decodes the result, and checks exact pixel equality.
-   It shows both images, raw RGB size, PNG size, and the raw-to-PNG size ratio.
-3. Download the lossless PNG.
-4. Choose **Decompress** and upload that PNG. No original image is required.
+1. Choose **Compress**, upload an image or select a sample, and set wavelet
+   decomposition levels (1–8) and compression effort (0–9). Every setting
+   preserves the same pixels. More levels analyze larger spatial regions.
+2. Click **Compress and verify**. The tool applies reversible integer Haar
+   wavelets and DEFLATE, decodes the result, and checks exact pixel equality.
+   It shows both images, raw RGB size, archive size, and their size ratio.
+3. Download the custom **.iwv** archive. This is not a PNG or JPEG 2000 file;
+   ordinary image viewers cannot open it directly.
+4. Choose **Decompress** and upload that archive. No original image is required.
    Preview the decoded pixels and download an uncompressed BMP.
 
 Lossless means exact preservation of the **8-bit RGB pixels supplied to the
 encoder**, not the original uploaded file bytes. The existing image loader
 converts uploads to RGB (discarding alpha), and floating-point sample values
 are rounded before encoding. Metadata and original color profiles are not
-preserved. Decoding accepts non-interlaced, single-frame 8-bit RGB PNGs without
-transparency; other PNG modes are rejected rather than silently converted.
-The limits are 4 million pixels and 64 MB per compressed PNG upload.
+preserved. Decompression also accepts legacy non-interlaced, single-frame
+8-bit RGB PNGs without transparency. The limits are 4 million pixels and
+64 MB per archive upload.
 
-Unlike FFT pruning, PNG discards no pixel information. File sizes depend on
-image content: small or noisy images may grow, and PNG can be larger than JPEG.
-The displayed ratio compares PNG bytes with raw RGB bytes, not the original
+The wavelet transform retains every coefficient without quantization. File
+sizes depend on image content: small or noisy images may grow, and archives
+can be larger than PNG or JPEG. The displayed ratio compares archive bytes
+with raw RGB bytes, not the original
 uploaded file size. An uncompressed BMP also includes a header and row padding.
 
 ### Custom codec implementation
 
 The lossless tool implements the algorithms directly, without Pillow, OpenCV
-encoding/decoding, or a compression-library call in its PNG codec:
+encoding/decoding, or a compression-library call in its wavelet codec:
+
+- `imgutil/wavelet.py`: reversible color differences (R-G, G, B-G), multilevel
+  integer Haar lifting, signed zigzag packing, byte-plane ordering, archive
+  framing, inverse transforms, and decoded-pixel CRC verification.
+  For each pair `a,b`, lifting computes `d=b-a` and `s=a+floor(d/2)`.
+  The inverse computes `a=s-floor(d/2)` and `b=a+d`, exactly even for negative
+  details. Rows then columns form 2D low/detail bands; the next level transforms
+  only the low/low region. Odd tails are carried unchanged. Decoding reverses
+  level order and then axis order.
+- IWV version 1 stores a 17-byte big-endian header (`IWV1`, width uint32,
+  height uint32, levels uint8, RGB CRC-32 uint32), followed by a zlib stream.
+  The stream holds four byte planes of little-endian uint32 zigzag coefficients,
+  flattened in row/column/channel order. No coefficients are discarded.
 
 - `imgutil/lossless.py`: PNG chunk parsing/writing, CRC-32 checksums, all five
   row filters (None, Sub, Up, Average, Paeth), adaptive filter selection,
@@ -112,10 +127,9 @@ PNG downloads use the custom encoder. The application has no direct Pillow
 calls, although third-party UI/plotting packages may depend on Pillow internally.
 The separate Fourier `.npz` archive tool continues to use NumPy's ZIP storage.
 
-Run `python -m unittest discover -s tests -v` to check pixel preservation,
-all PNG filters, checksum failures, BMP layout, and compatibility with stored,
-fixed, and dynamic DEFLATE streams. Standard-library `zlib` is used only as an
-independent reference in tests, never by the custom codec.
+Run `python -m unittest discover -s tests -v` to check known Haar coefficients,
+exact round trips for noise, constant images, checkerboards, odd dimensions,
+single-pixel axes, multiple decomposition/effort settings, and damaged archives.
 
 Format references: [PNG specification](https://www.w3.org/TR/png/) and
 [DEFLATE RFC 1951](https://www.rfc-editor.org/rfc/rfc1951).

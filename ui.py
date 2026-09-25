@@ -11,7 +11,7 @@ TOOL_DETAILS = {
     "Partial image reconstruction": ("Reconstruction", "Rebuild your image from selected color channels and see how each contributes."),
     "Color space comparison": ("Color spaces", "Look at the same image through RGB and YCbCr color spaces."),
     "Compression and decompression": ("Fourier compression", "Find the balance between retained frequency detail and archive size."),
-    "Lossless PNG compression": ("Lossless PNG", "Compress and recover your image with exact preservation of its 8-bit RGB pixels."),
+    "Lossless wavelet compression": ("Lossless wavelets", "Use reversible integer wavelets to compress and recover every 8-bit RGB pixel exactly."),
     "Filtering": ("Image filters", "Fine-tune texture and detail with blur and sharpening controls."),
     "White Scratch Removal": ("White Scratch Removal", "Detect and repair white dots and bright scratches in your photographs."),
 }
