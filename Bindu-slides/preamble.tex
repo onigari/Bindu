@@ -72,8 +72,10 @@
 
 \setbeamertemplate{footline}{%
   \ifnum\insertframenumber>1\relax
-    \hskip10mm{\color{muted}\fontsize{6.5}{7}\selectfont\semifont Bindu}\hfill
-    {\color{muted}\fontsize{6.5}{7}\selectfont\semifont\insertframenumber\,/\,\inserttotalframenumber}\hskip10mm\par\vskip2mm
+    \noindent\hbox to \paperwidth{%
+      % \hskip10mm{\color{muted}\fontsize{6.5}{7}\selectfont\semifont Bindu}\hfill
+      \hfill{\color{muted}\fontsize{6.5}{7}\selectfont\semifont\insertframenumber\,/\,\inserttotalframenumber}\hskip3mm%
+    }\par\vskip2mm
     \begin{tikzpicture}
       \fill[panelborder] (0,0) rectangle (\paperwidth,0.6mm);
       \fill[accent] (0,0) rectangle ({\paperwidth*\insertframenumber/\inserttotalframenumber},0.6mm);
