@@ -113,6 +113,84 @@ Fix an old photo? & morphology, inpainting\\
 
 % ------------------------------------------------------------------ 4  (S, 0:20)
 \section{Analysis}
+
+
+\begin{frame}{Image as a 3D array}
+\vspace{3mm}
+  \begin{itemize}
+    \item A colour image is a 3D array of shape $H \times W \times 3$.
+    \item The third axis indexes the three colour channels.
+  \end{itemize}
+  \vspace{0.4cm}
+  \begin{center}
+  \begin{tikzpicture}[x={(-0.35cm,-0.35cm)}, y={(1cm,0cm)}, z={(0cm,1cm)},
+                      line join=round]
+    % Dimensions
+    \def\W{4}  % width  (y)
+    \def\H{3}  % height (z)
+    \def\D{3}  % depth  (x) = 3 channels
+
+    % Back face (x = \D)
+    \fill[blue!25, opacity=0.7]
+      (\D,0,0) -- (\D,\W,0) -- (\D,\W,\H) -- (\D,0,\H) -- cycle;
+    % Bottom face
+    \fill[gray!15, opacity=0.6]
+      (0,0,0) -- (\D,0,0) -- (\D,\W,0) -- (0,\W,0) -- cycle;
+    % Front face (x = 0)
+    \fill[red!20, opacity=0.8]
+      (0,0,0) -- (0,\W,0) -- (0,\W,\H) -- (0,0,\H) -- cycle;
+    % Top face
+    \fill[gray!30, opacity=0.6]
+      (0,0,\H) -- (\D,0,\H) -- (\D,\W,\H) -- (0,\W,\H) -- cycle;
+    % Right face (y = \W)
+    \fill[green!20, opacity=0.7]
+      (0,\W,0) -- (\D,\W,0) -- (\D,\W,\H) -- (0,\W,\H) -- cycle;
+
+    % Grid lines on front face
+    \foreach \zz in {0,...,\H}
+      \draw[gray!60, very thin] (0,0,\zz) -- (0,\W,\zz);
+    \foreach \yy in {0,...,\W}
+      \draw[gray!60, very thin] (0,\yy,0) -- (0,\yy,\H);
+    % Grid lines on top face
+    \foreach \yy in {0,...,\W}
+      \draw[gray!60, very thin] (0,\yy,\H) -- (\D,\yy,\H);
+    \foreach \xx in {0,...,\D}
+      \draw[gray!60, very thin] (\xx,0,\H) -- (\xx,\W,\H);
+    % Grid lines on right face
+    \foreach \zz in {0,...,\H}
+      \draw[gray!60, very thin] (0,\W,\zz) -- (\D,\W,\zz);
+    \foreach \xx in {0,...,\D}
+      \draw[gray!60, very thin] (\xx,\W,0) -- (\xx,\W,\H);
+
+    % Outer edges
+    \draw[thick] (0,0,0) -- (\D,0,0) -- (\D,\W,0) -- (0,\W,0) -- cycle;
+    \draw[thick] (0,0,\H) -- (\D,0,\H) -- (\D,\W,\H) -- (0,\W,\H) -- cycle;
+    \draw[thick] (0,0,0) -- (0,0,\H);
+    \draw[thick] (\D,0,0) -- (\D,0,\H);
+    \draw[thick] (\D,\W,0) -- (\D,\W,\H);
+    \draw[thick] (0,\W,0) -- (0,\W,\H);
+
+    % Axis labels
+    \draw[{Stealth[length=2mm]}-{Stealth[length=2mm]}, thick]
+      (\D+0.7, 0.2, 0) -- (\D+0.7, \W+0.2, 0) node[font=\small] at (3, \W/2, -0.5) {$W$};
+    \draw[{Stealth[length=2mm]}-{Stealth[length=2mm]}, thick]
+      (\D, -0.3, 0) -- (\D, -0.3, \H) node[font=\small] at (-0.2, -1.7, \H/2-1) {$H$};
+
+    % Depth label
+    \draw[{Stealth[length=2mm]}-{Stealth[length=2mm]}, thick]
+      (0, \W+0.5, 0) -- (\D, \W+0.5, 0)
+      node[midway, right, font=\scriptsize]{channels};
+  \end{tikzpicture}
+  \end{center}
+  % \vspace{-0.1cm}
+  % \begin{center}\scriptsize
+  %   \texttt{img[row, col, 0]} = R \quad
+  %   \texttt{img[row, col, 1]} = G \quad
+  %   \texttt{img[row, col, 2]} = B
+  % \end{center}
+\end{frame}
+
+
 \begin{frame}{An image is three 2D signals stacked together}
 \vspace{3mm}
 \begin{columns}[T,onlytextwidth]
@@ -124,13 +202,14 @@ Fix an old photo? & morphology, inpainting\\
     \foreach \zz in {0,0.8,...,2.4} \draw[\fc, line width=0.3pt] (\xx,0,\zz) -- (\xx,3.2,\zz);
     \foreach \yy in {0,0.8,...,3.2} \draw[\fc, line width=0.3pt] (\xx,\yy,0) -- (\xx,\yy,2.4);
     \draw[\fc, line width=0.9pt] (\xx,0,0) -- (\xx,3.2,0) -- (\xx,3.2,2.4) -- (\xx,0,2.4) -- cycle;
-    \node[font=\semifont\scriptsize, text=\fc!70!ink] at (\xx,3.2,2.4) [above right=-0.5mm] {\l};}
-  \node[font=\semifont\large, text=ink] at (0,1.6,1.2) {$x_R$};
+    % \node[font=\semifont\scriptsize, text=\fc!70!ink] at (\xx,3.2,2.4) [above right=-0.5mm] {\l};
+    }
+  % \node[font=\semifont\large, text=ink] at (0,1.6,1.2) {$x_R$};
   \draw[{Stealth[length=1.5mm]}-{Stealth[length=1.5mm]}, muted] (0,0,-0.3) -- (0,3.2,-0.3) node[midway, below=0.2mm, font=\scriptsize]{$W$};
   \draw[{Stealth[length=1.5mm]}-{Stealth[length=1.5mm]}, muted] (0,-0.3,0) -- (0,-0.3,2.4) node[midway, left, font=\scriptsize]{$H$};
   \draw[{Stealth[length=1.5mm]}-{Stealth[length=1.5mm]}, muted] (0,3.5,0) -- (3.2,3.5,0) node[midway, below right=-0.5mm, font=\scriptsize]{3 channels};
 \end{tikzpicture}
-\vspace{2mm}
+\vspace{4mm}
 \begin{card}{}
 \centering
 $x_c[m,n],\quad c\in\{R,G,B\}$\\[0.8mm]
