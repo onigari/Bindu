@@ -81,7 +81,7 @@ Fix an old photo? & morphology, inpainting\\
 
 % ------------------------------------------------------------------ 3  (S, 0:25)
 \section{Design}
-\begin{frame}{Architecture: maths kept apart from the interface}
+\begin{frame}{System Architecture}
 \vspace{1mm}
 \centering
 \begin{tikzpicture}[font=\fontsize{7}{8.5}\selectfont]
@@ -257,7 +257,7 @@ $x_c[m,n]\in[0,255]$
 \eqn{p_c[k] = \frac{h_c[k]}{H\,W},\qquad \sum_{k=0}^{255} p_c[k] = 1}
 \end{card}
 \vspace{1.5mm}
-\begin{hotcard}{Luminance: \ ITU-R BT.601 formula}
+\begin{hotcard}{Perceived Luminance}
   \vspace{0.3em}
 \eqn{Y = \begin{bmatrix} 0.299 & 0.587 & 0.114 \end{bmatrix}\begin{bmatrix} R \\ G \\ B \end{bmatrix}}
 \vspace{0.3em}
