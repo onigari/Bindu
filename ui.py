@@ -10,7 +10,7 @@ TOOL_DETAILS = {
     "Color channel analyzer and histogram": ("Channel analyzer", "Explore the colors behind your image. Compare RGB channels, histograms, and frequency content."),
     "Partial image reconstruction": ("Reconstruction", "Rebuild your image from selected color channels and see how each contributes."),
     "Color space comparison": ("Color spaces", "Look at the same image through RGB and YCbCr color spaces."),
-    "Compression and decompression": ("Fourier compression", "Find the balance between retained frequency detail and archive size."),
+    "Compression and decompression": ("Fourier compression", "Keep the strongest Fourier harmonics in each RGB channel. Removed information cannot be recovered."),
     "Lossless wavelet compression": ("Lossless wavelets", "Use reversible integer wavelets to compress and recover every 8-bit RGB pixel exactly."),
     "Filtering": ("Image filters", "Fine-tune texture and detail with blur and sharpening controls."),
     "White Scratch Removal": ("White Scratch Removal", "Detect and repair white dots and bright scratches in your photographs."),

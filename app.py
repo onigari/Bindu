@@ -368,7 +368,6 @@ def run_partial_reconstruction(img: np.ndarray, channels: dict) -> None:
 
     st.divider()
 
-    st.caption("Live inverse Fourier reconstruction uses a preview up to 128 pixels per side. Each step adds a frequency row to the image; scrub backward to remove it.")
     if not tool_ready("Reconstruct image", img):
         return
     channels = split_channels(img)
@@ -400,12 +399,6 @@ def run_color_space_comparison(img: np.ndarray, channels: dict) -> None:
     st.subheader("RGB vs YCbCr")
     with st.expander("Source image", expanded=False):
         st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
-    st.caption(
-        "RGB stores red, green, and blue intensities. YCbCr separates luma (Y) "
-        "from blue-difference (Cb) and red-difference (Cr) color information. "
-        "This comparison uses full-range values from 0 to 255, with neutral chroma at 128. "
-        "Conversion alone does not compress the image."
-    )
     center = st.checkbox("Remove channel mean before FFT", value=True, key="color_space_center")
     if not tool_ready("Compare color spaces", img, center):
         return
@@ -497,12 +490,9 @@ def run_compression(img, channels) -> None:
         return
     with st.expander("Source image", expanded=False):
         st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
-    st.caption(
-        "Keep the strongest Fourier harmonics in each RGB channel until the selected energy target is reached. "
-        "Lower targets usually create smaller files with more detail loss. Removed information cannot be recovered."
-    )
     with st.form("compression_settings"):
         energy = st.slider("Energy to retain per channel (%)", 1.0, 100.0, 99.0, 0.1)
+        st.caption("Lower value creates smaller file size with more detail loss.")
         submitted = st.form_submit_button("Compress and preview")
     if not submitted:
         return
@@ -571,13 +561,6 @@ def run_lossless_compression(img, channels) -> None:
         return
     with st.expander("Source image", expanded=False):
         st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
-    st.caption(
-        "Reversible integer Haar wavelets separate the image into averages and detail signals. "
-        "Every coefficient is retained and compressed with LZ77 and Huffman coding, preserving every 8-bit RGB pixel. "
-        "Higher compression levels spend more effort reducing file size without changing image quality. "
-        "The app converts uploads to RGB and rounds sample values to 8-bit pixels before encoding; "
-        "source metadata, transparency, and original file bytes are not preserved."
-    )
     with st.form("lossless_settings"):
         levels = st.slider("Wavelet decomposition levels", 1, 8, 4)
         level = st.slider("Compression effort", 0, 9, 9)
@@ -722,7 +705,6 @@ def _restore_preview(img, settings):
 def run_white_scratch_removal(img, channels) -> None:
     with st.expander("Source image", expanded=False):
         st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
-    st.caption("Repair small white dots and bright scratches using surrounding pixels.")
     if img.shape[0] * img.shape[1] > 4_000_000:
         st.error("Please use a photo with at most 4 million pixels.")
         return

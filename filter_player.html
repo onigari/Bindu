@@ -17,11 +17,17 @@
             padding: 16px
         }
 
+        .title {
+            display: block;
+            margin-bottom: 10px;
+        }
+
         canvas {
             width: 100%;
             height: 270px;
             object-fit: contain;
             image-rendering: pixelated;
+            margin-bottom: 10px;
             background: #0b1423
         }
 
@@ -105,8 +111,8 @@
 
 <body>
     <div class="card">
-        <strong>Live result · filtered pixels over the original</strong><canvas id="output"
-            aria-label="Original image progressively replaced by calculated filter pixels"></canvas>
+        <strong class="title">Live result</strong>
+        <canvas id="output" aria-label="Original image progressively replaced by calculated filter pixels"></canvas>
         <label for="timeline">Pixel calculation timeline</label><input id="timeline" type="range" min="0" step="1"
             value="0">
         <div id="time"></div>
@@ -123,9 +129,6 @@
                     <option value="2">B</option>
                 </select></label></div>
         <div id="math"></div>
-        <div class="note">Calculated pixels show the filtered result; uncalculated pixels keep their original values.
-            Each calculation uses the unchanged source pixels and kernel weights. Red outline marks the kernel; yellow
-            marks its center. Pause or step to inspect individual pixels.</div>
         <details id="details">
             <summary>Inspect every multiplication for the current pixel</summary>
             <div class="table">
@@ -142,9 +145,6 @@
                 </table>
             </div>
         </details>
-        <p class="note">5-second target playback at 1x; large images or kernels may take longer. The calculation runs as
-            playback advances; the timeline is not a CPU benchmark. RGB output is clipped to 0â€“255 and truncated to
-            match the app preview.</p>
     </div>
     <script>/*ENGINE*/
         const config =/*CONFIG*/;
@@ -188,7 +188,7 @@
             timeline.value = count; play.textContent = playing ? 'Pause' : 'Play';
             document.getElementById('time').textContent = (count / total * duration).toFixed(1) + ' / 5.0 s | ' + count + ' / ' + total + ' pixels';
             const c = Number(channel.value), value = runtime.output[pixel * 3 + c];
-            document.getElementById('math').textContent = count ? 'Pixel (row ' + (config.originY + y) + ', col ' + (config.originX + x) + '), ' + 'RGB'[c] + ': sum of ' + (config.size * config.size) + ' products = ' + value.toFixed(5) + ' â†’ displayed ' + clamp(value) : 'No output pixels calculated yet.';
+            document.getElementById('math').textContent = count ? 'Pixel (row ' + (config.originY + y) + ', col ' + (config.originX + x) + ')' : 'No output pixels calculated yet.';
             if (document.getElementById('details').open) {
                 const terms = count ? runtime.terms(pixel, c) : [];
                 document.getElementById('terms').innerHTML = terms.map(t => '<tr><td>' + t.y + ', ' + t.x + '</td><td>' + t.value.toFixed(4) + '</td><td>' + t.weight.toPrecision(5) + '</td><td>' + t.product.toPrecision(6) + '</td></tr>').join('');

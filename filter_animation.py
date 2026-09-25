@@ -17,7 +17,7 @@ def animate_filter(image, kernel):
                   patchWidth=patch.shape[1], size=kernel.shape[0],
                   pixels=patch.ravel().tolist(), kernel=kernel.ravel().tolist())
     st.subheader("Live kernel calculation")
-    st.caption(f"Calculating the entire {width} x {height} image at original resolution. Filtered pixels replace the original as the kernel advances; pending pixels stay unchanged. Borders are reflected at image edges.")
+    st.caption(f"Calculating the entire {width} x {height} image at original resolution.")
     template = Path(__file__).with_name("filter_player.html").read_text(encoding="utf-8")
     engine = Path(__file__).with_name("filter_runtime.js").read_text(encoding="utf-8")
     st.iframe(template.replace("/*ENGINE*/", engine).replace("/*CONFIG*/", json.dumps(config)), height=820)
