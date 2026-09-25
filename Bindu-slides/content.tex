@@ -155,14 +155,16 @@ $x_c[m,n]\in[0,255]$
 \vspace{2mm}
 \begin{columns}[T,onlytextwidth]
 \column{0.42\textwidth}
-\begin{card}{Histogram of channel $c$}
+\begin{card}{Histogram of channel $\textit{\textcolor{accenttext}{c}}$}
 \eqn{h_c[k] = \#\{(m,n) : x_c[m,n] = k\}}
 \eqn{p_c[k] = \frac{h_c[k]}{H\,W},\qquad \sum_{k=0}^{255} p_c[k] = 1}
 \end{card}
 \vspace{1.5mm}
-\begin{hotcard}{Luminance: mix per pixel first}
+\begin{hotcard}{Luminance: \ ITU-R BT.601 formula}
+  \vspace{0.3em}
 \eqn{Y = \begin{bmatrix} 0.299 & 0.587 & 0.114 \end{bmatrix}\begin{bmatrix} R \\ G \\ B \end{bmatrix}}
-Adding $h_R+h_G+h_B$ is not the same thing: $Y$ is formed inside every pixel first, which is closer to what the eye sees.
+\vspace{0.3em}
+{\scriptsize $Y$ uses the perceived luminance, which is closer to what the eye sees.}
 \end{hotcard}
 \column{0.55\textwidth}
 \centering
@@ -177,10 +179,13 @@ Adding $h_R+h_G+h_B$ is not the same thing: $Y$ is formed inside every pixel fir
 \column{0.43\textwidth}
 \begin{card}{2D discrete Fourier transform}
 \eqn{X[k,l] = \sum_{m=0}^{H-1}\sum_{n=0}^{W-1} x[m,n]\, e^{-j2\pi\left(\frac{km}{H}+\frac{ln}{W}\right)}}
-\texttt{fftshift} puts DC in the centre; we display $\log(1+|X|)$.
+\vspace{0.4em}
+{\tiny \texttt{fftshift} puts DC in the centre; we display $\log(1+|X|)$}.
 \end{card}\vspace{1mm}
 \begin{card}{Parseval's theorem}
 \eqn{\sum_{m,n}|x[m,n]|^2 = \frac{1}{HW}\sum_{k,l}|X[k,l]|^2}
+\vspace{0.4em}
+{\tiny Energy in space = Energy in frequency.}
 \end{card}\vspace{1mm}
 \begin{hotcard}{Partial reconstruction}
 \eqn{\hat x = \big[\,\mathcal F^{-1}X_R,\;\; \mathcal F^{-1}X_G,\;\; 0\,\big]}
@@ -241,6 +246,7 @@ R, G and B move together ($\rho_{RG}=0.994$ on this image). After the transform 
 \eqn{\Longleftrightarrow\quad Y[k,l] = H[k,l]\cdot X[k,l]}
 \end{card}\vspace{1mm}
 \begin{card}{Kernels are just different $h$}
+  \vspace{0.3em}
 \centering
 \begin{tabular}{@{}c@{\hspace{5mm}}c@{}}
 $\dfrac19\!\begin{bmatrix}1&1&1\\1&1&1\\1&1&1\end{bmatrix}$ &
@@ -249,7 +255,7 @@ $\begin{bmatrix}0&-1&0\\-1&5&-1\\0&-1&0\end{bmatrix}$\\[3.5mm]
 \end{tabular}
 \end{card}\vspace{1mm}
 \begin{hotcard}{Gaussian and unsharp mask}
-$G_\sigma\propto e^{-(i^2+j^2)/2\sigma^2}$, \; $y = x + a\,(x - G_\sigma * x)$\\[0.4mm]
+$G_\sigma\propto e^{-\frac{(i^2+j^2)}{2\sigma^2}}$, \; $y = x + a\,(x - G_\sigma * x)$\\[0.4mm]
 $\Rightarrow$ one kernel: $h=(1+a)\,\delta - a\,G_\sigma$
 \end{hotcard}
 \column{0.51\textwidth}
