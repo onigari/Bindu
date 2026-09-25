@@ -54,16 +54,16 @@
   \vskip3mm\hskip10mm%
   \ifnum\insertframenumber>1\relax
     {\color{muted}\semifont\fontsize{6.5}{7}\selectfont\MakeUppercase{\insertsectionhead}}\fi\hfill
-  \ifnum\insertframenumber>1\relax
-    \begin{tikzpicture}[baseline=-0.5ex]
-      \foreach \i in {0,...,14}{
-          \pgfmathtruncatemacro{\n}{\i+1}
-          \ifnum\n=\insertframenumber\relax
-            \fill[accent] (\i*0.19,0) circle (0.055);
-          \else
-            \fill[panelborder] (\i*0.19,0) circle (0.04);
-          \fi}
-    \end{tikzpicture}\fi
+  % \ifnum\insertframenumber>1\relax
+  %   \begin{tikzpicture}[baseline=-0.5ex]
+  %     \foreach \i in {0,...,14}{
+  %         \pgfmathtruncatemacro{\n}{\i+1}
+  %         \ifnum\n=\insertframenumber\relax
+  %           \fill[accent] (\i*0.19,0) circle (0.055);
+  %         \else
+  %           \fill[panelborder] (\i*0.19,0) circle (0.04);
+  %         \fi}
+  %   \end{tikzpicture}\fi
   \hskip10mm}
 
 \setbeamertemplate{frametitle}{%
