@@ -10,6 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import streamlit as st
+from animated_histograms import animated_histogram, animated_spectrum, prepare_spectrum_channels
 from ui import apply_style, render_brand, render_header, TOOL_DETAILS
 
 from imgutil.core import *
@@ -255,26 +256,18 @@ def run_color_channel_analyzer(img: np.ndarray, channels: dict) -> None:
             
             st.image(display_img, caption=f"{name} channel", width="stretch")
 
-    # 2. Generate and render the matplotlib histograms afterwards
+    # Draw the histogram curves in the browser without blocking processing.
     for col, name in zip(cols, names):
         with col:
-            hist_fig = plot_single_channel_histogram(channels[name], name)
-            st.pyplot(hist_fig)
-            plt.close(hist_fig)
+            animated_histogram({name: channels[name]}, f"{name} histogram")
 
     st.divider()
 
     # --- Stage B: histograms ---
     st.subheader("Combined Histogram")
 
-    fig = plot_channel_histograms(
-        channels,
-        title="Combined Histogram",
-        show_combined=show_combined,
-        show_luminance=show_luminance,
-    )
-    st.pyplot(fig, width="content")
-    plt.close(fig)
+    animated_histogram(channels, "Combined Histogram", combined=show_combined,
+                       luminance=show_luminance)
 
     st.divider()
 
@@ -284,39 +277,17 @@ def run_color_channel_analyzer(img: np.ndarray, channels: dict) -> None:
 def render_frequency_content(channels: dict, names: list, log_scale: bool, show_luminance_spectrum: bool) -> None:
     st.subheader("Frequency Content")
 
-    channel_spectra = {}
-    for name in names:
-        fft_result = _cached_fft(channels[name])
-        channel_spectra[name] = compute_magnitude_spectrum(fft_result, log_scale=log_scale)
-
-    luminance_spectrum = None
+    sources = dict(channels)
     if show_luminance_spectrum:
-        luminance = 0.299 * channels["R"] + 0.587 * channels["G"] + 0.114 * channels["B"]
-        lum_fft = _cached_fft(luminance)
-        luminance_spectrum = compute_magnitude_spectrum(lum_fft, log_scale=log_scale)
-
-    all_spectra = list(channel_spectra.values()) + (
-        [luminance_spectrum] if luminance_spectrum is not None else []
-    )
-    global_vmin = min(float(s.min()) for s in all_spectra)
-    global_vmax = max(float(s.max()) for s in all_spectra)
-
-    # --- Row 1: R/G/B spectra, with the colorbar legend on the right ---
+        sources["Luminance"] = 0.299 * channels["R"] + 0.587 * channels["G"] + 0.114 * channels["B"]
+    prepared, bound = prepare_spectrum_channels(sources)
     n_channels = len(names)
-    *panel_cols, legend_col = st.columns([4] * n_channels + [1])
-
-    for col, name in zip(panel_cols, names):
+    for col, name in zip(st.columns(n_channels), names):
         with col:
-            rgb = _shared_normalized_spectrum_to_rgb(channel_spectra[name], global_vmin, global_vmax)
-            st.image(rgb, caption=f"{name} spectrum", width="stretch")
-
-    with legend_col:
-        # Blank caption-height placeholder so the colorbar image itself
-        # starts at the same vertical offset as the spectrum images
-        # (which each have a real caption above their image).
-        st.caption("\u200b")
-        cb_fig = _shared_colorbar_figure(round(global_vmin, 4), round(global_vmax, 4))
-        st.pyplot(cb_fig, width="stretch")
+            animated_spectrum(prepared[name], f"{name} spectrum", bound=bound, log_scale=log_scale)
+    st.caption("Spectra are calculated live from source rows. Zero frequency is centered; each new row changes the whole spectrum.")
+    maximum = float(np.log1p(bound) if log_scale else bound)
+    st.caption(f"Shared magnitude scale: 0 to {maximum:.2f}.")
 
     # --- Row 2: energy share per channel, directly under the spectra ---
     st.markdown(
@@ -349,13 +320,9 @@ def render_frequency_content(channels: dict, names: list, log_scale: bool, show_
                 unsafe_allow_html=True,
             )
 
-    # --- Row 3: combined luminance spectrum, below everything else ---
-    if luminance_spectrum is not None:
-        lum_width, rest_width = 4, 4 * (n_channels - 1) + 1  # one panel-width + leftover blank
-        lum_col, _ = st.columns([lum_width, rest_width])
-        with lum_col:
-            rgb = _shared_normalized_spectrum_to_rgb(luminance_spectrum, global_vmin, global_vmax)
-            st.image(rgb, caption="Luminance spectrum", width="stretch")
+    if show_luminance_spectrum:
+        with st.columns(n_channels)[0]:
+            animated_spectrum(prepared["Luminance"], "Luminance spectrum", bound=bound, log_scale=log_scale)
 
 
 def run_partial_reconstruction(img: np.ndarray, channels: dict) -> None:
@@ -418,35 +385,26 @@ def run_color_space_comparison(img: np.ndarray, channels: dict) -> None:
                 st.image(np.rint(channel).astype(np.uint8), caption=name, width="stretch")
 
     st.subheader("Channel Histograms")
-    fig, axes = plt.subplots(2, 3, figsize=(12, 6), sharex=True, sharey=True)
-    for row, (_, space) in enumerate(spaces):
-        for ax, (name, channel) in zip(axes[row], space.items()):
-            plot_single_channel_histogram(channel, name, ax=ax)
-            ax.set_xlim(0, 255)
-    fig.tight_layout()
-    st.pyplot(fig)
-    plt.close(fig)
+    for label, space in spaces:
+        st.markdown(f"**{label} histograms**")
+        for col, (name, channel) in zip(st.columns(3), space.items()):
+            with col:
+                animated_histogram({name: channel}, f"{name} histogram")
 
     st.subheader("Frequency Content")
     st.caption(
         "Removing the mean highlights spatial detail and removes constant offsets, including neutral chroma. "
         "All six log-magnitude spectra share one color scale."
     )
-    spectra = {
-        name: compute_magnitude_spectrum(_cached_fft(channel - channel.mean() if center else channel))
-        for _, space in spaces for name, channel in space.items()
-    }
-    vmin = min(float(s.min()) for s in spectra.values())
-    vmax = max(float(s.max()) for s in spectra.values())
-    fig, axes = plt.subplots(2, 3, figsize=(12, 7), layout="constrained")
-    for row, (_, space) in enumerate(spaces):
-        for ax, name in zip(axes[row], space):
-            plotted = ax.imshow(spectra[name], cmap="viridis", vmin=vmin, vmax=vmax)
-            ax.set_title(f"{name} spectrum")
-            ax.axis("off")
-    fig.colorbar(plotted, ax=axes.ravel().tolist(), label="log(1 + FFT magnitude)", shrink=0.8)
-    st.pyplot(fig)
-    plt.close(fig)
+    sources = {name: channel for _, space in spaces for name, channel in space.items()}
+    prepared, bound = prepare_spectrum_channels(sources, center=center)
+    for label, space in spaces:
+        st.markdown(f"**{label} spectra**")
+        for col, name in zip(st.columns(3), space):
+            with col:
+                animated_spectrum(prepared[name], f"{name} spectrum", bound=bound)
+    st.caption(f"Shared magnitude scale: 0 to {np.log1p(bound):.2f} (log scale). Live preview up to 128 pixels per side.")
+
 
 
 def _png_bytes(img: np.ndarray) -> bytes:
