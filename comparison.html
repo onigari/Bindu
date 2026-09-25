@@ -1,0 +1,24 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box}body{margin:0;background:#101b2d;color:#e6edf7;font:13px system-ui;color-scheme:dark}
+.card{padding:12px;border:1px solid #30435c;border-radius:12px}.labels{display:flex;justify-content:space-between;gap:12px;margin-bottom:10px}.labels span{max-width:48%;overflow-wrap:anywhere}
+.stage{position:relative;height:280px;background:#090f1c;overflow:hidden;border-radius:8px;touch-action:pan-y;cursor:ew-resize}
+img{position:absolute;width:100%;height:100%;object-fit:contain;pointer-events:none;user-select:none}.before{clip-path:inset(0 50% 0 0)}
+.divider{position:absolute;left:50%;top:0;bottom:0;width:2px;background:#67e8f9;pointer-events:none}.divider:after{content:"↔";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#67e8f9;color:#091522;border-radius:50%;width:28px;height:28px;display:grid;place-items:center;font-size:18px}
+label{display:block;margin-top:10px;color:#a5b6cb;font-size:12px}input{width:100%;accent-color:#67e8f9;cursor:ew-resize}input:focus-visible{outline:2px solid #67e8f9;outline-offset:2px}
+</style></head><body><div class="card">
+<div class="labels"><span>Before · __BEFORE_LABEL__</span><span>After · __AFTER_LABEL__</span></div>
+<div class="stage" id="stage"><img src="__AFTER_IMAGE__" alt="__AFTER_LABEL__" draggable="false"><img class="before" id="before" src="__BEFORE_IMAGE__" alt="__BEFORE_LABEL__" draggable="false"><div class="divider" id="divider"></div></div>
+<label for="position">Drag to compare · <output id="value">50</output>% original</label>
+<input id="position" type="range" min="0" max="100" value="50" aria-label="Before and after comparison position">
+</div><script>
+const slider=document.getElementById('position'),stage=document.getElementById('stage');
+function update(value){const p=Math.max(0,Math.min(100,value));slider.value=p;document.getElementById('before').style.clipPath=`inset(0 ${100-p}% 0 0)`;document.getElementById('divider').style.left=p+'%';document.getElementById('value').textContent=Math.round(p);slider.setAttribute('aria-valuetext',Math.round(p)+' percent original');}
+slider.addEventListener('input',()=>update(Number(slider.value)));
+function point(e){const rect=stage.getBoundingClientRect();update((e.clientX-rect.left)/rect.width*100);}
+stage.addEventListener('pointerdown',e=>{if(e.button!==0)return;stage.setPointerCapture(e.pointerId);point(e);});
+stage.addEventListener('pointermove',e=>{if(stage.hasPointerCapture(e.pointerId))point(e);});
+stage.addEventListener('pointerup',e=>{if(stage.hasPointerCapture(e.pointerId))stage.releasePointerCapture(e.pointerId);});
+update(50);
+</script></body></html>

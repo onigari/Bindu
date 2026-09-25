@@ -1,0 +1,79 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{margin:0;font:14px system-ui;color:#e6edf7;background:#101b2d}.card{border:1px solid #293c54;border-radius:12px;padding:16px}
+canvas{width:100%;height:270px;object-fit:contain;image-rendering:pixelated;background:#0b1423}
+.controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}button,select{font:inherit;padding:6px 10px;background:#16283e;border:1px solid #36516c;border-radius:6px;color:#e6edf7;cursor:pointer}
+input{width:100%;accent-color:#53dbb2}#time,#math{font-variant-numeric:tabular-nums;margin:8px 0}.note{font-size:12px;color:#a5b6cb}.table{max-height:160px;overflow:auto}table{border-collapse:collapse;width:100%;font-size:12px}th,td{padding:4px 8px;text-align:right;border-bottom:1px solid #293c54}th{position:sticky;top:0;background:#16283e}
+button:hover,select:hover{border-color:#67e8f9}button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid #67e8f9;outline-offset:3px}html{color-scheme:dark}</style></head><body><div class="card">
+<strong>Live result · filtered pixels over the original</strong><canvas id="output" aria-label="Original image progressively replaced by calculated filter pixels"></canvas>
+<label for="timeline">Pixel calculation timeline</label><input id="timeline" type="range" min="0" step="1" value="0"><div id="time"></div>
+<div class="controls"><button id="play">Pause</button><button id="back">Previous pixel</button><button id="next">Next pixel</button><button id="replay">Replay</button><label>Speed <select id="speed"><option value=".5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option><option value="4">4x</option><option value="8">8x</option></select></label><label>Inspect channel <select id="channel"><option value="0">R</option><option value="1">G</option><option value="2">B</option></select></label></div>
+<div id="math"></div><div class="note">Calculated pixels show the filtered result; uncalculated pixels keep their original values. Each calculation uses the unchanged source pixels and kernel weights. Red outline marks the kernel; yellow marks its center. Pause or step to inspect individual pixels.</div>
+<details id="details"><summary>Inspect every multiplication for the current pixel</summary><div class="table"><table><thead><tr><th>Offset (row, col)</th><th>Source</th><th>Weight</th><th>Product</th></tr></thead><tbody id="terms"></tbody></table></div></details>
+<p class="note">5-second target playback at 1x; large images or kernels may take longer. The calculation runs as playback advances; the timeline is not a CPU benchmark. RGB output is clipped to 0â€“255 and truncated to match the app preview.</p>
+</div><script>/*ENGINE*/
+const config=/*CONFIG*/;
+const runtime=new RuntimeFilter(config), total=config.width*config.height;
+const timeline=document.getElementById('timeline'), play=document.getElementById('play'), speed=document.getElementById('speed'), channel=document.getElementById('channel');
+timeline.max=total;
+const output=document.getElementById('output');
+// Keep native image dimensions; scale the display with CSS.
+const zoom=1;
+const duration=5;
+output.width=config.width*zoom;output.height=config.height*zoom;
+let playing=!matchMedia('(prefers-reduced-motion: reduce)').matches, position=playing?0:total, previous=null, frame=null;
+const clamp=v=>Math.floor(Math.max(0,Math.min(255,v)));
+const oc=output.getContext('2d');
+const sourceImage=oc.createImageData(config.width,config.height), outputImage=oc.createImageData(config.width,config.height);
+const radius=Math.floor(config.size/2);
+for(let i=0;i<total;i++){
+    const offset=((Math.floor(i/config.width)+radius)*config.patchWidth+i%config.width+radius)*3;
+    for(let c=0;c<3;c++) sourceImage.data[i*4+c]=clamp(config.pixels[offset+c]);
+    sourceImage.data[i*4+3]=255;
+
+}
+// Start from the original, then overwrite only completed pixels.
+outputImage.data.set(sourceImage.data);
+let painted=0;
+function draw(){
+    const target=Math.min(total,Math.floor(position));runtime.seek(target,10);
+    const count=runtime.completed;
+    const pixel=Math.max(0,count-1), x=pixel%config.width, y=Math.floor(pixel/config.width);
+    if(count<painted) outputImage.data.set(sourceImage.data.subarray(count*4,painted*4),count*4);
+    for(let i=Math.min(painted,count);i<count;i++){
+        for(let c=0;c<3;c++) outputImage.data[i*4+c]=clamp(runtime.output[i*3+c]);
+    }
+    painted=count;
+    oc.putImageData(outputImage,0,0);
+    if(count){
+        const line=Math.max(1,config.width/500), marker=Math.max(1,config.width/180);
+        oc.strokeStyle='#e13b40';oc.lineWidth=line;oc.strokeRect(x-radius,y-radius,config.size,config.size);
+        oc.strokeStyle='#ffe34d';oc.lineWidth=line;oc.strokeRect(x-marker/2,y-marker/2,marker,marker);
+    }
+    timeline.value=count;play.textContent=playing?'Pause':'Play';
+    document.getElementById('time').textContent=(count/total*duration).toFixed(1)+' / 5.0 s | '+count+' / '+total+' pixels';
+    const c=Number(channel.value), value=runtime.output[pixel*3+c];
+    document.getElementById('math').textContent=count ? 'Pixel (row '+(config.originY+y)+', col '+(config.originX+x)+'), '+'RGB'[c]+': sum of '+(config.size*config.size)+' products = '+value.toFixed(5)+' â†’ displayed '+clamp(value) : 'No output pixels calculated yet.';
+    if(document.getElementById('details').open){
+        const terms=count?runtime.terms(pixel,c):[];
+        document.getElementById('terms').innerHTML=terms.map(t=>'<tr><td>'+t.y+', '+t.x+'</td><td>'+t.value.toFixed(4)+'</td><td>'+t.weight.toPrecision(5)+'</td><td>'+t.product.toPrecision(6)+'</td></tr>').join('');
+    }
+}
+function schedule(){if(frame===null)frame=requestAnimationFrame(tick);}
+function tick(now){
+    frame=null;
+    if(playing && previous!==null)position=Math.min(total,position+(now-previous)/1000*total/duration*Number(speed.value));
+    previous=now;
+    draw();
+    if(runtime.completed>=total){playing=false;play.textContent='Play';}
+    if(playing || runtime.completed<Math.floor(position))schedule();
+}
+function start(){previous=null;playing=true;draw();schedule();}
+function seek(n){playing=false;position=Math.max(0,Math.min(total,n));previous=null;draw();if(runtime.completed<Math.floor(position))schedule();}
+play.onclick=()=>{if(playing){playing=false;position=runtime.completed;draw();}else{if(position>=total)position=0;start();}};
+document.getElementById('replay').onclick=()=>{position=0;start();};
+document.getElementById('back').onclick=()=>seek(runtime.completed-1);
+document.getElementById('next').onclick=()=>seek(runtime.completed+1);
+timeline.oninput=()=>seek(Number(timeline.value));speed.onchange=()=>{previous=null;};channel.onchange=draw;
+document.getElementById('details').ontoggle=()=>{if(document.getElementById('details').open){playing=false;position=runtime.completed;draw();}};
+draw();if(playing)start();else if(runtime.completed<Math.floor(position))schedule();
+</script></body></html>

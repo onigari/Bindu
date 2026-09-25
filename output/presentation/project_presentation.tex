@@ -1,0 +1,263 @@
+% Compile with: pdflatex project_presentation.tex (twice)
+% Or: tectonic project_presentation.tex
+% Self-contained source; no external images, fonts, or bibliography.
+% Four-minute script and timing appear before each frame.
+\documentclass[aspectratio=169,11pt]{beamer}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{booktabs}
+\definecolor{Ink}{HTML}{142C43}
+\definecolor{Teal}{HTML}{007F82}
+\definecolor{Muted}{HTML}{526575}
+\definecolor{Paper}{HTML}{F5F8FA}
+\definecolor{Mint}{HTML}{62DED0}
+\definecolor{Gold}{HTML}{F3C66B}
+\definecolor{RedChannel}{HTML}{C64A56}
+\definecolor{GreenChannel}{HTML}{23826A}
+\definecolor{BlueChannel}{HTML}{376DC6}
+\setbeamercolor{normal text}{fg=Ink,bg=Paper}
+\setbeamercolor{background canvas}{bg=Paper}
+\setbeamercolor{palette primary}{fg=white,bg=Ink}
+\setbeamercolor{frametitle}{fg=Ink}
+\setbeamercolor{structure}{fg=Teal}
+\setbeamercolor{alerted text}{fg=Teal}
+\setbeamerfont{frametitle}{size=\LARGE,series=\bfseries}
+\setbeamerfont{title}{size=\LARGE,series=\bfseries}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{itemize item}{\small\textbullet}
+\setbeamertemplate{footline}{%
+\begin{beamercolorbox}[wd=\paperwidth,ht=4mm,dp=2mm,leftskip=9mm,rightskip=9mm]{palette primary}
+\scriptsize\textbf{BINDU}\hspace{2mm}{\color{Mint}An image workspace}\hfill\insertframenumber\enspace/\enspace\inserttotalframenumber
+\end{beamercolorbox}}
+\setbeamersize{text margin left=9mm,text margin right=9mm}
+\setbeamertemplate{frametitle}{\vspace{4mm}\insertframetitle\par\vspace{1mm}{\color{Teal}\rule{\textwidth}{0.7pt}}\vspace{1mm}}
+\setbeamercolor{math text}{fg=Teal}
+\setbeamercolor{description item}{fg=Teal}
+\setbeamertemplate{enumerate item}{\color{Teal}\bfseries\insertenumlabel.}
+\newcommand{\topic}[1]{{\color{Teal}\bfseries #1}}
+\newcommand{\muted}[1]{{\color{Muted}#1}}
+\title{Bindu: an image workspace}
+\hypersetup{pdftitle={Bindu: an image workspace},pdfsubject={Four-minute project presentation}}
+\begin{document}
+
+% SLIDE 1: 0:00--0:10 (10 seconds)
+% Our project is Bindu: an image workspace. We explore
+% image channels, reconstruction, color spaces, Fourier compression and filters.
+{
+\setbeamercolor{background canvas}{bg=Ink}
+\setbeamercolor{normal text}{fg=white,bg=Ink}
+\usebeamercolor[fg]{normal text}
+\begin{frame}[plain]
+{\color{Mint}\small IMAGE PROCESSING PROJECT}\par\vspace{7mm}
+{\fontsize{40}{44}\selectfont\bfseries Bindu:}\par\vspace{1mm}
+{\fontsize{26}{30}\selectfont an image workspace}\par
+\vspace{7mm}
+{\color{Mint}\rule{22mm}{1.2pt}}\par\vspace{4mm}
+{\large Channel analysis, reconstruction\\and image processing}\par
+\vspace{7mm}
+{\color{Gold}\small Python\quad /\quad Streamlit\quad /\quad NumPy\quad /\quad OpenCV}
+\end{frame}
+}
+
+% SLIDE 2: 0:10--0:25 (15 seconds)
+% The application has five main tools in this presentation. We analyze RGB
+% channels, reconstruct selected channels, compare color spaces, compress with
+% Fourier energy pruning, and apply smoothing or sharpening filters.
+\begin{frame}{Feature overview}
+\renewcommand{\arraystretch}{1.65}
+\begin{tabular}{@{}lp{40mm}p{85mm}@{}}
+\topic{01}&\textbf{Channel analyzer}&RGB previews, histograms and FFT spectra\\
+\topic{02}&\textbf{Reconstruction}&Recover selected color channels\\
+\topic{03}&\textbf{Color spaces}&Compare RGB and YCbCr\\
+\topic{04}&\textbf{Fourier compression}&Prune coefficients and decode archives\\
+\topic{05}&\textbf{Image filters}&Smooth or sharpen image details\\
+\end{tabular}
+\vspace{5mm}
+\small\muted{Upload an image or choose a sample, then explore the processing results.}
+\end{frame}
+
+% SLIDE 3: 0:25--1:00 (35 seconds)
+% Our project lets users explore how images work through an interactive
+% Streamlit application. The channel analyzer starts by separating an image
+% into red, green and blue components. A grayscale preview shows the intensity
+% of each component, while a colored preview shows its contribution to the
+% original image. Histograms count pixels at each intensity, helping us compare
+% how the channels use their available range. The two-dimensional FFT gives a
+% different view: it describes spatial frequencies rather than pixel positions.
+% We display log-magnitude spectra so weaker frequency components remain visible.
+% Together, these views connect the image's colors with its intensity and
+% frequency information before we modify or reconstruct it.
+\begin{frame}{Channel analyzer}
+\textbf{Inspect each RGB component in the spatial and frequency domains}
+\vspace{5mm}
+\begin{itemize}\setlength\itemsep{4mm}
+\item \textbf{Channel previews:} isolate red, green and blue contributions.
+\item \textbf{Histograms:} compare pixel intensity distributions.
+\item \textbf{2-D FFT spectra:} inspect spatial frequency content.
+\end{itemize}
+\vspace{4mm}
+\[F_c(u,v)=\mathcal F\{I_c(x,y)\},\qquad c\in\{R,G,B\}\]
+\vspace{2mm}
+\muted{Log-magnitude display makes weaker frequency components easier to see.}
+\end{frame}
+
+% SLIDE 4: 1:00--1:35 (35 seconds)
+% Partial reconstruction asks what happens when we keep only some color
+% channels. The app computes the full complex FFT of each selected channel,
+% then applies the inverse FFT to recover its spatial values. Both magnitude
+% and phase matter in this reconstruction. Channels that are not selected
+% become zero. For example, choosing red and green preserves those components
+% and removes blue, changing the overall color balance. Users can select one
+% channel or any pair, compare the result with the original and download it.
+% This operation removes entire color channels. Within each selected channel,
+% it retains the full frequency spectrum, so it differs from the coefficient
+% pruning used later in Fourier compression.
+\begin{frame}{Partial image reconstruction}
+\begin{columns}[T,onlytextwidth]
+\column{0.49\textwidth}
+\topic{Keep one channel or a pair}
+\begin{itemize}\setlength\itemsep{4mm}
+\item Choose R, G, B, R+G, R+B or G+B
+\item Apply the inverse FFT to selected channels
+\item Set omitted channels to zero
+\end{itemize}
+\column{0.46\textwidth}
+\topic{Full complex spectra}
+\vspace{4mm}
+\[\widehat I_c=\begin{cases}
+\mathcal F^{-1}(F_c),&c\text{ selected},\\
+0,&c\text{ omitted}.
+\end{cases}\]
+\vspace{3mm}
+\muted{Example: R+G preserves red and green values and removes blue.}
+\end{columns}
+\vspace{6mm}
+\alert{Selected channels retain both magnitude and phase.}
+\end{frame}
+
+% SLIDE 5: 1:35--2:10 (35 seconds)
+% The color-space comparison shows the same image in RGB and full-range
+% YCbCr. RGB expresses each pixel through red, green and blue intensities.
+% YCbCr instead separates luma, called Y, from two color-difference channels,
+% Cb and Cr. The displayed formula shows that green contributes the most to
+% the luma calculation used here. A neutral color has chroma values of 128.
+% The app compares channel previews, histograms and frequency spectra. Shared
+% axes and a shared spectrum scale support fair visual comparison. By default,
+% it removes channel means before plotting spectra so constant offsets do not
+% dominate. This feature demonstrates the representation change without
+% performing compression or chroma subsampling.
+\begin{frame}{Color spaces: RGB and YCbCr}
+\begin{columns}[T,onlytextwidth]
+\column{0.45\textwidth}
+{\Large\bfseries\color{RedChannel}R\color{GreenChannel}G\color{BlueChannel}B}
+\par\vspace{3mm} Red, green and blue intensities describe each pixel.
+\par\vspace{6mm}
+{\Large\topic{YCbCr}}
+\par\vspace{3mm} Y represents luma. Cb and Cr represent color differences.
+\column{0.50\textwidth}
+\topic{Full-range BT.601 conversion}
+\vspace{3mm}
+\[Y=0.299R+0.587G+0.114B\]
+\muted{Neutral chroma: Cb = Cr = 128.}
+\par\vspace{5mm} Compare grayscale previews, histograms and FFT spectra.
+\end{columns}
+\vspace{6mm}
+\small\muted{Shared plotting scales support comparison. Mean removal is on by default for spectra. This tool does not compress or subsample the image.}
+\end{frame}
+
+% SLIDE 6: 2:10--3:10 (60 seconds)
+% The lossy method transforms each RGB channel with a two-dimensional FFT.
+% It groups conjugate frequency pairs and ranks them by squared magnitude,
+% which represents energy. It always retains the DC component, or channel
+% mean, then keeps enough of the strongest pairs to meet the chosen energy
+% target. The archive stores indices and complex coefficients. Decoding rebuilds
+% the spectrum and applies the inverse FFT without needing the original image.
+% The table is a measurement using one resized repository sample. Raising the
+% target from 99 to 99.9 percent improves PSNR but greatly increases file size.
+% Energy retention is therefore not a compression ratio, and the archive can
+% be larger than a PNG. These figures illustrate one image, not a benchmark.
+\begin{frame}{Fourier compression}
+\begin{columns}[T,onlytextwidth]
+\column{0.49\textwidth}
+\begin{enumerate}\setlength\itemsep{2mm}
+\item Compute a 2-D FFT per channel
+\item Rank conjugate pairs by energy
+\item Keep DC and the strongest pairs
+\item Store indices and coefficients
+\end{enumerate}
+\vspace{2mm}
+\[\frac{\sum_{k\in K}|F(k)|^2}{\sum_k|F(k)|^2}\geq \frac{p}{100}\]
+\muted{Decode with an inverse FFT.}
+\column{0.46\textwidth}
+\topic{Measured quality--size tradeoff}\par\vspace{3mm}
+\small
+\renewcommand{\arraystretch}{1.35}
+\begin{tabular}{@{}rrr@{}}
+\toprule
+\textbf{Energy} & \textbf{Archive} & \textbf{PSNR}\\
+\midrule
+95\% & 2.7 KiB & 17.09 dB\\
+99\% & 15.0 KiB & 24.09 dB\\
+99.9\% & 193.8 KiB & 34.20 dB\\
+\bottomrule
+\end{tabular}
+\par\vspace{4mm}
+\muted{Higher PSNR means less pixel error.\\Energy retention is not a size ratio.}
+\end{columns}
+\vspace{5mm}
+{\scriptsize\muted{Measured with the project codec on inputs/test.jpg resized to 256 $\times$ 366 RGB pixels. Raw size: 274.5 KiB. One example, not a general benchmark.}}
+\end{frame}
+
+% SLIDE 7: 3:10--3:50 (40 seconds)
+% Finally, the image filters let us modify local image structure. Gaussian
+% blur uses weighted neighbors, while box blur uses their average. Both smooth
+% the image, with stronger settings also removing fine detail. For sharpening,
+% the app provides Laplacian sharpening and unsharp masking. Unsharp masking
+% subtracts a blurred image to isolate detail, then adds a scaled version of
+% that detail back to the original. Users can compare filtering only red,
+% green or blue against filtering all channels. Applying the same filter
+% independently to every channel matches its whole-image counterpart within
+% floating-point tolerance. These controls show the tradeoff between smoothing
+% detail and emphasizing edges. Excessive sharpening can amplify noise or halos.
+\begin{frame}{Image filters}
+\begin{columns}[T,onlytextwidth]
+\column{0.46\textwidth}
+{\Large\topic{Smoothing}}
+\begin{itemize}\setlength\itemsep{3mm}
+\item Gaussian blur: weighted neighbors
+\item Box blur: local averaging
+\end{itemize}
+\par\vspace{5mm}\muted{Larger blur settings smooth more detail.}
+\column{0.49\textwidth}
+{\Large\topic{Sharpening}}
+\begin{itemize}\setlength\itemsep{3mm}
+\item Laplacian: emphasize local changes
+\item Unsharp mask: add detail back
+\end{itemize}
+\[I_{\mathrm{sharp}}=I+a\bigl(I-G_\sigma*I\bigr)\]
+\small\muted{$G_\sigma*I$: Gaussian-blurred image.\\$a$: sharpening amount.}
+\end{columns}
+\vspace{5mm}
+\alert{Compare R-only, G-only, B-only and all-channel filtering.}
+\par\vspace{3mm}
+\small\muted{Strong sharpening can amplify noise and produce halos.}
+\end{frame}
+% SLIDE 8: 3:50--4:00 (10 seconds)
+% These tools connect image-processing concepts with visible results and
+% demonstrate how channel selection, compression and filtering affect images.
+% Thank you. I welcome your questions.
+{
+\setbeamercolor{background canvas}{bg=Ink}
+\setbeamercolor{normal text}{fg=white,bg=Ink}
+\usebeamercolor[fg]{normal text}
+\begin{frame}[plain]
+{\color{Mint}\small BINDU: AN IMAGE WORKSPACE}\par\vspace{10mm}
+{\fontsize{36}{40}\selectfont\bfseries Thank you}\par
+\vspace{5mm}
+{\color{Gold}\Large Questions and discussion}\par
+\vspace{8mm}
+{\color{Mint}\rule{22mm}{1.2pt}}\par\vspace{4mm}
+\large Exploring how channel selection, compression\\and filtering affect images.
+\end{frame}
+}
+\end{document}
