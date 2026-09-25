@@ -19,11 +19,11 @@ TOOL_DETAILS = {
 def apply_style():
     st.markdown(f"<style>{Path(__file__).with_name('ui.css').read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
     plt.rcParams.update({
-        "figure.facecolor": "#ffffff", "axes.facecolor": "#ffffff",
-        "axes.edgecolor": "#dee5e3", "axes.labelcolor": "#63736e",
-        "text.color": "#243b34", "xtick.color": "#63736e", "ytick.color": "#63736e",
+        "figure.facecolor": "#101b2d", "axes.facecolor": "#101b2d",
+        "axes.edgecolor": "#30435c", "axes.labelcolor": "#a5b6cb",
+        "text.color": "#e6edf7", "xtick.color": "#a5b6cb", "ytick.color": "#a5b6cb",
         "axes.spines.top": False, "axes.spines.right": False,
-        "axes.grid": True, "grid.color": "#edf1ef", "grid.alpha": 0.8,
+        "axes.grid": True, "grid.color": "#26364d", "grid.alpha": 0.8,
         "axes.axisbelow": True, "font.size": 10, "axes.titlesize": 12,
         "axes.titleweight": "medium", "lines.linewidth": 1.8,
     })
@@ -49,10 +49,10 @@ def render_welcome(samples):
     st.markdown('''<div class="welcome-panel">
         <div class="spectrum"><i></i><i></i><i></i></div>
         <div class="eyebrow">A CLOSER LOOK AT EVERY PIXEL</div>
-        <h2>Every image has a story.<br>Explore what’s underneath.</h2>
+        <h2>Every image has a story.<br>Explore whatâ€™s underneath.</h2>
         <p>Separate colors, discover patterns, and bring out the details.<br>
         Upload an image in the sidebar or start with a sample below.</p>
-        <span class="format-badge">PNG · JPG · JPEG · BMP</span>
+        <span class="format-badge">PNG Â· JPG Â· JPEG Â· BMP</span>
         </div>''', unsafe_allow_html=True)
     st.subheader("Start with a little inspiration")
     st.caption("Choose a sample to explore the workspace. You can switch tools at any time.")
@@ -64,5 +64,5 @@ def render_welcome(samples):
             st.image(preview[64:192, :], width="stretch")
             st.markdown(f"**{name}**")
             st.caption(description)
-            st.button("Explore sample →", key=f"sample_{name}", on_click=choose_sample, args=(name,), width="stretch")
-    st.caption("01  Load an image     ·     02  Choose a tool     ·     03  Explore and compare")
+            st.button("Explore sample â†’", key=f"sample_{name}", on_click=choose_sample, args=(name,), width="stretch")
+    st.caption("01  Load an image     Â·     02  Choose a tool     Â·     03  Explore and compare")

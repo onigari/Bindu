@@ -3,9 +3,9 @@ from html import escape
 
 import streamlit as st
 
-COLORS = {"R": "#db5555", "G": "#23916c", "B": "#487bd5",
-          "Y": "#9b770d", "Cb": "#7854b7", "Cr": "#cc547b",
-          "Total": "#243b34", "Luminance": "#7a8580"}
+COLORS = {"R": "#ff777f", "G": "#53dbb2", "B": "#72a8ff",
+          "Y": "#efcd69", "Cb": "#b79bff", "Cr": "#f58db9",
+          "Total": "#e6edf7", "Luminance": "#b4c2d4"}
 
 
 def animated_histogram(channels, title, *, combined=False, luminance=False):
@@ -23,14 +23,14 @@ def animated_histogram(channels, title, *, combined=False, luminance=False):
     names = list(sources) + (["Total"] if combined else [])
     paths, legend, grid = [], [], []
     for name in names:
-        color = COLORS.get(name, "#243b34")
+        color = COLORS.get(name, "#e6edf7")
         dash = ' stroke-dasharray="7 4"' if name in ("Total", "Luminance") else ""
         paths.append(f'<path id="fill-{escape(name)}" fill="{color}" opacity=".10"/>'
                      f'<path id="curve-{escape(name)}" fill="none" stroke="{color}" stroke-width="2"{dash}/>')
         legend.append(f'<span><i style="background:{color}"></i>{escape(name)}</span>')
     for fraction in (0, .25, .5, .75, 1):
         y = 244 - fraction * 202
-        grid.append(f'<line x1="58" x2="606" y1="{y}" y2="{y}" stroke="#e7ece9"/>'
+        grid.append(f'<line x1="58" x2="606" y1="{y}" y2="{y}" stroke="#293c54"/>'
                     f'<text x="50" y="{y+4}" text-anchor="end" data-count-tick="{fraction}">0</text>')
     for value in (0, 64, 128, 192, 255):
         x = 58 + value / 255 * 548
@@ -94,18 +94,18 @@ def render_player(title, chart, extent, steps, unit, runtime=None):
     if reconstruction:
         note = "Live inverse Fourier calculation from frequency rows, low vertical frequencies first. Preview up to 128 pixels per side. Time is paced playback."
     st.iframe("""<!doctype html><html><head><meta charset="utf-8"><style>
-    body { margin:0; color:#243b34; background:white; font:13px system-ui,sans-serif; }
-    .card { border:1px solid #e2e9e5; border-radius:12px; padding:12px; }
+    body { margin:0; color:#e6edf7; background:#101b2d; font:13px system-ui,sans-serif; }
+    .card { border:1px solid #293c54; border-radius:12px; padding:12px; }
     header { font-weight:600; margin-bottom:8px; }
-    button, select { cursor:pointer; background:#edf5f0; color:#243b34;
-        border:1px solid #d4e4da; border-radius:6px; padding:5px 8px; font:inherit; }
+    button, select { cursor:pointer; background:#16283e; color:#e6edf7;
+        border:1px solid #36516c; border-radius:6px; padding:5px 8px; font:inherit; }
     canvas { display:block; width:100%; height:250px; object-fit:contain; image-rendering:pixelated; }
-    svg { display:block; width:100%; height:250px; } text { fill:#63736e; font:11px system-ui; }
+    svg { display:block; width:100%; height:250px; } text { fill:#a5b6cb; font:11px system-ui; }
     .legend, .controls { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:8px 0; }
     i { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; }
-    input { width:100%; accent-color:#23916c; margin:8px 0; }
-    .time { font-variant-numeric:tabular-nums; } .note { font-size:11px; color:#63736e; }
-    </style></head><body><div class="card"><header>""" + escape(title) + "</header>" + chart + """
+    input { width:100%; accent-color:#53dbb2; margin:8px 0; }
+    .time { font-variant-numeric:tabular-nums; } .note { font-size:11px; color:#a5b6cb; }
+    button:hover,select:hover{border-color:#67e8f9}button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid #67e8f9;outline-offset:3px}html{color-scheme:dark}</style></head><body><div class="card"><header>""" + escape(title) + "</header>" + chart + """
     <label for="timeline">Animation timeline</label>
     <input id="timeline" aria-label="Animation timeline" type="range" min="0" max="8" step="0.01" value="0">
     <div class="time" id="time" aria-live="off"></div>
