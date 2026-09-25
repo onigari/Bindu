@@ -4,7 +4,7 @@
 % ==================================================================
 
 % ------------------------------------------------------------------ 1  (S, 0:10)
-\section{Introduction}
+\section{Introduction -- Why Bindu?}
 \begin{frame}[plain]
 \begin{tikzpicture}[remember picture,overlay]
   % eye made of pixels
@@ -43,7 +43,7 @@
 \end{frame}
 
 % ------------------------------------------------------------------ 2  (S, 0:25)
-\begin{frame}{Why Bindu? A picture is just a signal}
+\begin{frame}{A picture is just a signal}
 \vspace{3mm}
 \begin{columns}[T,onlytextwidth]
 \column{0.46\textwidth}
@@ -145,7 +145,7 @@ $x_c[m,n]\in[0,255]$
 \img{0.26\linewidth}{figs/img/swirl_G.jpg}\hspace{1.5mm}%
 \img{0.26\linewidth}{figs/img/swirl_B.jpg}\\[1.2mm]
 \begin{minipage}{0.84\linewidth}\centering
-\capt{Indexing the third axis, \texttt{img[:,:,c]}, splits the photo into its R, G and B planes. OpenCV loads BGR, so we swap to RGB first.}
+\capt{Indexing the third axis, \texttt{img[:,:,c]}, splits the photo into its R, G and B planes.}
 \end{minipage}
 \end{columns}
 \end{frame}
@@ -197,7 +197,7 @@ Adding $h_R+h_G+h_B$ is not the same thing: $Y$ is formed inside every pixel fir
 \img{0.25\linewidth}{figs/img/recon_RG.jpg}\hspace{1.5mm}%
 \img{0.25\linewidth}{figs/img/recon_GB.jpg}\\[0.3mm]
 \makebox[0.25\linewidth]{\lbl{all three}}\hspace{1.5mm}\makebox[0.25\linewidth]{\lbl{R+G}}\hspace{1.5mm}\makebox[0.25\linewidth]{\lbl{G+B}}\\[0.5mm]
-\begin{minipage}{0.85\linewidth}\centering\capt{Energy crowds at the centre (low frequencies); the phase carries the edges.}\end{minipage}
+\begin{minipage}{0.85\linewidth}\centering\capt{Energy crowds at the centre (low frequencies).}\end{minipage}
 \end{columns}
 \end{frame}
 
@@ -214,6 +214,7 @@ Adding $h_R+h_G+h_B$ is not the same thing: $Y$ is formed inside every pixel fir
 \end{bmatrix}\!
 \begin{bmatrix} R\\ G\\ B \end{bmatrix} +
 \begin{bmatrix} 0\\ 128\\ 128 \end{bmatrix}}
+\vspace{1em}
 The $C_b$ and $C_r$ rows sum to zero, so a grey pixel ($R=G=B$) gets neutral chroma $128$.
 \end{card}\vspace{1mm}
 \begin{hotcard}{Why it helps}
@@ -226,7 +227,7 @@ R, G and B move together ($\rho_{RG}=0.994$ on this image). After the transform 
 \img{0.3\linewidth}{figs/img/ycc_Cr.jpg}\\[0.3mm]
 \makebox[0.3\linewidth]{\lbl{Y}}\hspace{1.2mm}\makebox[0.3\linewidth]{\lbl{Cb (contrast ×5)}}\hspace{1.2mm}\makebox[0.3\linewidth]{\lbl{Cr (contrast ×5)}}\\[1mm]
 \plot{\linewidth}{energy_share.pdf}\\
-\capt{Energy about the mean: split evenly across R, G, B, but $98.9\%$ goes to $Y$.}
+\capt{Energy about the mean: \\ split evenly across R, G, B, but $98.9\%$ goes to $Y$.}
 \end{columns}
 \end{frame}
 
@@ -287,7 +288,7 @@ S\&P: \; $y\in\{0,255\}$ with prob.\ $p$, else $x$
 \dn{dn_sp_noisy}{}\hspace{0.8mm}\dnb{dn_sp_med}\hspace{0.8mm}\dn{dn_sp_gb}{}\hspace{0.8mm}\dn{dn_sp_nlm}{}\\[0.3mm]
 \makebox[0.225\linewidth]{\lbl{noisy 15.8 dB}}\hspace{0.8mm}\makebox[0.225\linewidth]{{\fontsize{6.5}{7.5}\selectfont\semifont\color{accenttext}median 35.8}}\hspace{0.8mm}\makebox[0.225\linewidth]{\lbl{Gaussian 26.2}}\hspace{0.8mm}\makebox[0.225\linewidth]{\lbl{NL-means 16.2}}\\[1mm]
 \begin{minipage}{0.95\linewidth}\centering
-\capt{PSNR vs.\ the clean crop ($5\times5$ windows, $h=15$). Averaging suits Gaussian noise; impulses need the median.}
+\capt{PSNR vs.\ the clean crop ($5\times5$ windows, $h=15$).}
 \end{minipage}
 \end{columns}
 \end{frame}
@@ -364,7 +365,7 @@ $s = a + \lfloor d/2 \rfloor$ & $b = a + d$
   \node[bl, anchor=north west] at ($(nw)+(0.5mm,-0.5mm)$) {LL$_2$};
 \end{tikzpicture}\\[1mm]
 \begin{minipage}{0.8\linewidth}\centering
-\capt{Two levels on our sample. Rows then columns split a block into an average (LL) and three detail bands; the next level splits LL again. Most detail is near zero (dark).}
+\capt{Two levels on our sample. Most detail is near zero (dark).}
 \end{minipage}
 \end{columns}
 \end{frame}
@@ -402,16 +403,19 @@ $s = a + \lfloor d/2 \rfloor$ & $b = a + d$
 \plot{\linewidth}{coef_dist.pdf}\\
 \capt{After the transform, $86\%$ of values lie within $\pm2$, so LZ77 and Huffman find far more repetition.}
 \column{0.31\textwidth}
-\begin{hotcard}{Result on a $256\times256$ crop}
-\renewcommand{\arraystretch}{1.2}
+\begin{hotcard}{Result on a 256×256 crop}
+\vspace{0.5em}
+{\scriptsize
+\renewcommand{\arraystretch}{1.1}
 \begin{tabular}{@{}l@{\hspace{2mm}}r@{}}
-Entropy, pixels & 7.04 bits\\
-Entropy, coefficients & \hl{2.99 bits}\\
+Entropy (pixels) & 7.04 bits\\
+Entropy (coefficients) & \hl{2.99 bits}\\
 Raw RGB & 192.0 KiB\\
 \texttt{.iwv} archive & \hl{112.0 KiB}\\
 Ratio & \hl{1.71$\times$}\\
 Decoded pixels & \hl{bit-exact}\\
 \end{tabular}
+}
 \end{hotcard}
 \end{columns}
 \end{frame}
