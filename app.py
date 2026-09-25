@@ -520,9 +520,7 @@ def run_compression(img, channels) -> None:
     psnr_col.metric("PSNR", "∞ (identical)" if mse == 0 else f"{psnr:.2f} dB")
     st.caption(
         f"Raw RGB: {original.nbytes / 1024:,.1f} KiB · Original encoded as PNG: {len(original_png) / 1024:,.1f} KiB. "
-        "A ratio below 1 means the archive is larger than raw RGB. Fourier archives can be larger than PNG/JPEG, "
-        "especially at high retention. Energy retention is not a file-size percentage."
-    )
+    )   
     st.dataframe(stats, hide_index=True)
     with st.expander("Absolute pixel difference (amplified 4×)"):
         difference = np.abs(original.astype(np.int16) - restored.astype(np.int16))
@@ -599,8 +597,8 @@ def render_kernel_visualizer(filter_name, params):
     size = kernel.shape[0]
     center = size // 2
     st.subheader("Kernel visualizer")
-    st.caption("Updates with your settings. Click Apply filter below to process the image.")
-    left, right = st.columns([2, 1])
+    st.caption("Kernel size is chosen automatically from sigma.")
+    left, right = st.columns([4, 1])
     with left:
         fig, ax = plt.subplots(figsize=(5, 4))
         signed = bool(np.any(kernel < 0))
@@ -636,8 +634,7 @@ def render_kernel_visualizer(filter_name, params):
             "Unsharp mask": "Effective kernel: (1 + amount) times the center impulse, minus amount times the Gaussian kernel.",
             "Laplacian sharpen": "Effective kernel: center impulse minus scale times the Laplacian kernel. Size 1 uses a 3 x 3 Laplacian stencil.",
         }
-        st.write(explanations[filter_name])
-        st.caption("The center cell aligns with the output pixel. The same weights are used for each selected channel. Image edges use OpenCV's reflected border handling.")
+        # st.write(explanations[filter_name])
     with st.expander("All kernel weights"):
         st.dataframe(kernel, width="stretch")
         st.download_button("Download kernel CSV", "\n".join(",".join(f"{value:.17g}" for value in row) for row in kernel),
@@ -668,10 +665,6 @@ def run_spatial_filtering(img: np.ndarray, channels: dict) -> None:
         return
 
     channels = split_channels(img)
-    render_kernel_visualizer(filter_name, kwargs)
-
-    animate_filter(img, filter_kernel(filter_name, **kwargs))
-
     chan_fn = config["channel_fn"]
     merged_fn = config["merged_fn"]
 
@@ -692,6 +685,11 @@ def run_spatial_filtering(img: np.ndarray, channels: dict) -> None:
             queue_comparison(img, result, after_label=f"{filter_name} ({name} only)")
     st.image(np.clip(merged_result, 0, 255).astype(np.uint8), caption=f"{filter_name} (all channels)", width=400)
     queue_comparison(img, merged_result, after_label=f"{filter_name} (all channels)")
+
+    st.divider()
+
+    render_kernel_visualizer(filter_name, kwargs)
+    animate_filter(img, filter_kernel(filter_name, **kwargs))
 
     st.divider()
 
