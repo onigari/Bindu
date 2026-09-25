@@ -15,6 +15,7 @@ from animated_histograms import (
     prepare_spectrum_channels,
 )
 from filter_animation import animate_filter
+from comparison import render_comparison
 from ui import apply_style, render_brand, render_header, TOOL_DETAILS
 
 from imgutil.core import *
@@ -190,6 +191,14 @@ TOOLS = [
 # Tool implementations
 # ---------------------------------------------------------------------------
 
+# Rebuilt on each Streamlit run so comparisons always match the current result.
+page_comparisons = []
+
+
+def queue_comparison(before, after, *, after_label):
+    page_comparisons.append((before, after, after_label))
+
+
 def tool_ready(label, source, settings=None, key="run"):
     """Require explicit approval again whenever the input or settings change."""
     data = source.tobytes() if isinstance(source, np.ndarray) else source
@@ -259,6 +268,7 @@ def run_color_channel_analyzer(img: np.ndarray, channels: dict) -> None:
                 display_img = channel_as_color_image(channels[name], name)
             
             st.image(display_img, caption=f"{name} channel", width="stretch")
+            queue_comparison(img, display_img, after_label=f"{name} channel")
 
     # Draw the histogram curves in the browser without blocking processing.
     for col, name in zip(cols, names):
@@ -346,6 +356,9 @@ def run_partial_reconstruction(img: np.ndarray, channels: dict) -> None:
 
     def _render_combo(selected: list, col) -> None:
         with col:
+            result = np.stack([channels[name] if name in selected else np.zeros_like(channels[name])
+                               for name in ("R", "G", "B")], axis=-1)
+            queue_comparison(img, result, after_label=" + ".join(selected))
             animated_reconstruction({name: channel_ffts[name] for name in selected}, " + ".join(selected))
 
     # --- Row 1: all 2-channel combinations ---
@@ -383,7 +396,8 @@ def run_color_space_comparison(img: np.ndarray, channels: dict) -> None:
         st.markdown(f"**{label} channels**")
         for col, (name, channel) in zip(st.columns(3), space.items()):
             with col:
-                st.image(np.rint(channel).astype(np.uint8), caption=name, width="stretch")
+                st.image(np.clip(np.rint(channel), 0, 255).astype(np.uint8), caption=name, width="stretch")
+                queue_comparison(img, np.rint(channel), after_label=f"{label} · {name}")
 
     st.subheader("Channel Histograms")
     for label, space in spaces:
@@ -412,12 +426,28 @@ def _png_bytes(img: np.ndarray) -> bytes:
     return compress_png(img)
 
 
+def compare_reference(reference, restored):
+    if reference is None:
+        st.caption("Add an original image above to enable the before / after slider.")
+        return
+    try:
+        original = load_uploaded_image(reference)
+    except ValueError as exc:
+        st.error(str(exc))
+        return
+    if original.shape[:2] != restored.shape[:2]:
+        st.warning("The reference must have the same width and height as the decoded image.")
+        return
+    queue_comparison(original, restored, after_label="Decoded image")
+
+
 def run_compression(img, channels) -> None:
     st.subheader("Compression and Decompression")
     mode = st.radio("Operation", ["Compress", "Decompress"], horizontal=True)
     if mode == "Decompress":
         st.caption("Upload a Fourier .npz file downloaded from this tool. The original image is not required.")
         uploaded = st.file_uploader("Compressed image", type=["npz"], key="compressed_image")
+        reference = st.file_uploader("Original image for comparison (optional)", type=["png", "jpg", "jpeg", "bmp"], key="fourier_reference")
         if uploaded is None:
             st.session_state.pop(f"approved_{selected_tool}_decompress", None)
             return
@@ -429,6 +459,7 @@ def run_compression(img, channels) -> None:
             st.error(str(exc))
             return
         st.image(restored, caption="Decompressed image", width="stretch")
+        compare_reference(reference, restored)
         st.caption(f"{restored.shape[1]} × {restored.shape[0]} pixels")
         st.download_button("Download decompressed PNG", _png_bytes(restored), "decompressed.png", "image/png", on_click="ignore")
         return
@@ -461,6 +492,7 @@ def run_compression(img, channels) -> None:
         st.image(original, caption="Original", width="stretch")
     with right:
         st.image(restored, caption="Reconstructed from compressed file", width="stretch")
+    queue_comparison(original, restored, after_label="Fourier reconstruction")
     size_col, ratio_col, mse_col, psnr_col = st.columns(4)
     size_col.metric("Archive size", f"{len(archive) / 1024:,.1f} KiB")
     ratio_col.metric("Raw RGB / archive", f"{original.nbytes / len(archive):.2f}×")
@@ -485,6 +517,7 @@ def run_lossless_compression(img, channels) -> None:
     if mode == "Decompress":
         st.caption("Upload an 8-bit RGB PNG from this tool. No original image is needed.")
         uploaded = st.file_uploader("Lossless PNG", type=["png"], key="lossless_upload")
+        reference = st.file_uploader("Original image for comparison (optional)", type=["png", "jpg", "jpeg", "bmp"], key="lossless_reference")
         if uploaded is None:
             st.session_state.pop(f"approved_{selected_tool}_decompress", None)
             return
@@ -496,6 +529,7 @@ def run_lossless_compression(img, channels) -> None:
             st.error(str(exc))
             return
         st.image(restored, caption="Decoded RGB pixels", width="stretch")
+        compare_reference(reference, restored)
         st.caption(f"{restored.shape[1]} × {restored.shape[0]} pixels · {restored.nbytes:,} raw RGB bytes")
         st.download_button("Download uncompressed BMP", encode_bmp(restored), "decompressed.bmp", "image/bmp", on_click="ignore")
         return
@@ -531,6 +565,7 @@ def run_lossless_compression(img, channels) -> None:
         st.image(original, caption="Original 8-bit RGB", width="stretch")
     with right:
         st.image(restored, caption="Decoded PNG — identical pixels", width="stretch")
+    queue_comparison(original, restored, after_label="Decoded PNG · identical pixels")
     raw_col, png_col, ratio_col = st.columns(3)
     raw_col.metric("Raw RGB size", f"{original.nbytes:,} bytes")
     png_col.metric("PNG size", f"{len(encoded):,} bytes")
@@ -628,30 +663,13 @@ def run_spatial_filtering(img: np.ndarray, channels: dict) -> None:
     st.divider()
 
     st.subheader("Result")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.image(
-            np.clip(r_only_result, 0, 255).astype(np.uint8),
-            caption=f"{filter_name} (R only)",
-            width="stretch",
-        )
-    with col2:
-        st.image(
-            np.clip(g_only_result, 0, 255).astype(np.uint8),
-            caption=f"{filter_name} (G only)",
-            width="stretch",
-        )
-    with col3:
-        st.image(
-            np.clip(b_only_result, 0, 255).astype(np.uint8),
-            caption=f"{filter_name} (B only)",
-            width="stretch",
-        )
-    st.image(
-            np.clip(merged_result, 0, 255).astype(np.uint8),
-            caption=f"{filter_name} (all channels)",
-            width=400,
-        )
+    for col, name, result in zip(st.columns(3), ("R", "G", "B"),
+                                 (r_only_result, g_only_result, b_only_result)):
+        with col:
+            st.image(np.clip(result, 0, 255).astype(np.uint8), caption=f"{filter_name} ({name} only)", width="stretch")
+            queue_comparison(img, result, after_label=f"{filter_name} ({name} only)")
+    st.image(np.clip(merged_result, 0, 255).astype(np.uint8), caption=f"{filter_name} (all channels)", width=400)
+    queue_comparison(img, merged_result, after_label=f"{filter_name} (all channels)")
 
     st.divider()
 
@@ -718,12 +736,7 @@ def run_old_photo_restoration(img, channels) -> None:
         with st.expander("Inspect stripe and scratch repair mask", expanded=False):
             st.image(mask, caption="White pixels are selected for repair", clamp=True, width="stretch")
             st.caption(f"Selected {np.mean(mask > 0):.2%} of pixels.")
-    with st.expander("Before / after wipe comparison"):
-        position = st.slider("Original on left · restored on right", 0, 100, 50)
-        split = round(original.shape[1] * position / 100)
-        wipe = restored.copy()
-        wipe[:, :split] = original[:, :split]
-        st.image(wipe, width="stretch")
+    queue_comparison(original, restored, after_label="Restored preview")
     st.download_button("Download restored PNG", png, "restored_photo.png", "image/png", on_click="ignore")
 
 
@@ -767,3 +780,11 @@ else:
     img = image_picker(selected_tool)
     if img is not None:
         TOOL_RUNNERS[selected_tool](img, split_channels(img))
+
+
+if page_comparisons:
+    st.divider()
+    st.subheader("Before / after wipe comparison")
+    st.caption("Drag the divider to compare the original image with each result.")
+    for before, after, label in page_comparisons:
+        render_comparison(before, after, after_label=label)
