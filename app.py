@@ -212,31 +212,32 @@ def tool_ready(label, source, settings=None, key="run"):
 
 
 def image_picker(tool):
-    st.subheader("Your image")
-    source_mode = st.radio("Load from", ["Upload", "Sample gallery"],
-                           key=f"{tool}_source", horizontal=True)
-    img = None
-    if source_mode == "Upload":
-        uploaded = st.file_uploader("Choose an image", type=["png", "jpg", "jpeg", "bmp"],
-                                    key=f"{tool}_upload")
-        if uploaded is not None:
+    with st.sidebar:
+        st.subheader("Your image")
+        source_mode = st.radio("Load from", ["Upload", "Sample gallery"],
+                               key="workspace_source", horizontal=True)
+        img = None
+        if source_mode == "Upload":
+            uploaded = st.file_uploader("Choose an image", type=["png", "jpg", "jpeg", "bmp"],
+                                        key="workspace_upload")
+            if uploaded is not None:
+                try:
+                    img = load_uploaded_image(uploaded)
+                except ValueError as exc:
+                    st.error(str(exc))
+        else:
+            sample = st.selectbox("Sample image", list(SAMPLE_IMAGES), key="workspace_sample")
             try:
-                img = load_uploaded_image(uploaded)
-            except ValueError as exc:
-                st.error(str(exc))
-    else:
-        sample = st.selectbox("Sample image", list(SAMPLE_IMAGES), key=f"{tool}_sample")
-        try:
-            img = SAMPLE_IMAGES[sample]()
-        except (ValueError, OSError) as exc:
-            st.error(f"Could not load the sample: {exc}")
-    if img is None:
-        # Clearing the source must also clear permission to process it.
-        for key in list(st.session_state):
-            if key.startswith(f"approved_{tool}_"):
-                del st.session_state[key]
-        st.info("Upload an image or choose a sample to get started.")
-    return img
+                img = SAMPLE_IMAGES[sample]()
+            except (ValueError, OSError) as exc:
+                st.error(f"Could not load the sample: {exc}")
+        if img is None:
+            # Clearing the source must also clear permission to process it.
+            for key in list(st.session_state):
+                if key.startswith(f"approved_{tool}_"):
+                    del st.session_state[key]
+            st.info("Upload an image or choose a sample to get started.")
+        return img
 
 
 def run_color_channel_analyzer(img: np.ndarray, channels: dict) -> None:
@@ -248,6 +249,7 @@ def run_color_channel_analyzer(img: np.ndarray, channels: dict) -> None:
     show_luminance_spectrum = st.checkbox("Show combined luminance spectrum", value=True)
     if not tool_ready("Analyze image", img, (channel_view_mode, show_combined, show_luminance, log_scale, show_luminance_spectrum)):
         return
+    channels = split_channels(img)
     with st.expander("Source image", expanded=False):
         st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
 
@@ -350,6 +352,7 @@ def run_partial_reconstruction(img: np.ndarray, channels: dict) -> None:
     st.caption("Live inverse Fourier reconstruction uses a preview up to 128 pixels per side. Each step adds a frequency row to the image; scrub backward to remove it.")
     if not tool_ready("Reconstruct image", img):
         return
+    channels = split_channels(img)
     prepared, _ = prepare_spectrum_channels(channels)
     # The browser inverse transform consumes unshifted complex coefficients.
     channel_ffts = {name: np.fft.fft2(channel) for name, channel in prepared.items()}
@@ -388,6 +391,7 @@ def run_color_space_comparison(img: np.ndarray, channels: dict) -> None:
     center = st.checkbox("Remove channel mean before FFT", value=True, key="color_space_center")
     if not tool_ready("Compare color spaces", img, center):
         return
+    channels = split_channels(img)
     converted = rgb_to_ycbcr(img)
     ycbcr = {name: converted[:, :, i] for i, name in enumerate(("Y", "Cb", "Cr"))}
     spaces = [("RGB", channels), ("YCbCr", ycbcr)]
@@ -446,8 +450,10 @@ def run_compression(img, channels) -> None:
     mode = st.radio("Operation", ["Compress", "Decompress"], horizontal=True)
     if mode == "Decompress":
         st.caption("Upload a Fourier .npz file downloaded from this tool. The original image is not required.")
-        uploaded = st.file_uploader("Compressed image", type=["npz"], key="compressed_image")
-        reference = st.file_uploader("Original image for comparison (optional)", type=["png", "jpg", "jpeg", "bmp"], key="fourier_reference")
+        with st.sidebar:
+            st.subheader("Your compressed image")
+            uploaded = st.file_uploader("Compressed image", type=["npz"], key="compressed_image")
+            reference = st.file_uploader("Original image for comparison (optional)", type=["png", "jpg", "jpeg", "bmp"], key="fourier_reference")
         if uploaded is None:
             st.session_state.pop(f"approved_{selected_tool}_decompress", None)
             return
@@ -464,7 +470,6 @@ def run_compression(img, channels) -> None:
         st.download_button("Download decompressed PNG", _png_bytes(restored), "decompressed.png", "image/png", on_click="ignore")
         return
 
-    img = image_picker(selected_tool)
     if img is None:
         return
     st.caption(
@@ -516,8 +521,10 @@ def run_lossless_compression(img, channels) -> None:
     mode = st.radio("Operation", ["Compress", "Decompress"], horizontal=True, key="lossless_mode")
     if mode == "Decompress":
         st.caption("Upload an 8-bit RGB PNG from this tool. No original image is needed.")
-        uploaded = st.file_uploader("Lossless PNG", type=["png"], key="lossless_upload")
-        reference = st.file_uploader("Original image for comparison (optional)", type=["png", "jpg", "jpeg", "bmp"], key="lossless_reference")
+        with st.sidebar:
+            st.subheader("Your compressed image")
+            uploaded = st.file_uploader("Lossless PNG", type=["png"], key="lossless_upload")
+            reference = st.file_uploader("Original image for comparison (optional)", type=["png", "jpg", "jpeg", "bmp"], key="lossless_reference")
         if uploaded is None:
             st.session_state.pop(f"approved_{selected_tool}_decompress", None)
             return
@@ -534,7 +541,6 @@ def run_lossless_compression(img, channels) -> None:
         st.download_button("Download uncompressed BMP", encode_bmp(restored), "decompressed.bmp", "image/bmp", on_click="ignore")
         return
 
-    img = image_picker(selected_tool)
     if img is None:
         return
     st.caption(
@@ -643,10 +649,11 @@ def run_spatial_filtering(img: np.ndarray, channels: dict) -> None:
             else:
                 kwargs[param["name"]] = st.slider(param["label"], param["min"], param["max"], param["default"], step=param["step"],)
 
-    render_kernel_visualizer(filter_name, kwargs)
-
     if not tool_ready("Apply filter", img, (filter_name, kwargs)):
         return
+
+    channels = split_channels(img)
+    render_kernel_visualizer(filter_name, kwargs)
 
     animate_filter(img, filter_kernel(filter_name, **kwargs))
 
@@ -764,8 +771,6 @@ with st.sidebar:
 st.sidebar.subheader("Explore tools")
 selected_tool = st.sidebar.radio("Choose a tool", TOOLS, format_func=lambda tool: TOOL_DETAILS[tool][0], label_visibility="collapsed")
 st.sidebar.divider()
-st.sidebar.caption("A little curiosity. A new perspective.")
-st.sidebar.caption("Bindu · Color, detail & discovery")
 
 render_header(selected_tool)
 if st.session_state.get("active_tool") != selected_tool:
@@ -774,12 +779,11 @@ if st.session_state.get("active_tool") != selected_tool:
             del st.session_state[key]
     st.session_state["active_tool"] = selected_tool
 
-if selected_tool in ("Compression and decompression", "Lossless PNG compression"):
-    TOOL_RUNNERS[selected_tool](None, None)
-else:
-    img = image_picker(selected_tool)
-    if img is not None:
-        TOOL_RUNNERS[selected_tool](img, split_channels(img))
+# Keep the shared uploader mounted, including in decompression mode, so
+# Streamlit retains its file when navigating between tools.
+img = image_picker(selected_tool)
+if img is not None or selected_tool in ("Compression and decompression", "Lossless PNG compression"):
+    TOOL_RUNNERS[selected_tool](img, None)
 
 
 if page_comparisons:
@@ -788,3 +792,7 @@ if page_comparisons:
     st.caption("Drag the divider to compare the original image with each result.")
     for before, after, label in page_comparisons:
         render_comparison(before, after, after_label=label)
+
+
+st.sidebar.divider()
+st.sidebar.caption("Bindu · Color, detail & discovery")
