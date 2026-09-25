@@ -10,10 +10,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import streamlit as st
-from animated_histograms import (
-    animated_histogram, animated_spectrum, animated_reconstruction,
-    prepare_spectrum_channels,
-)
 from filter_animation import animate_filter
 from comparison import render_comparison
 from ui import apply_style, render_brand, render_header, TOOL_DETAILS
@@ -275,18 +271,26 @@ def run_color_channel_analyzer(img: np.ndarray, channels: dict) -> None:
             st.image(display_img, caption=f"{name} channel", width="stretch")
             queue_comparison(img, display_img, after_label=f"{name} channel")
 
-    # Draw the histogram curves in the browser without blocking processing.
+    # Render the histograms as static Matplotlib figures for consistent, lightweight previews.
     for col, name in zip(cols, names):
         with col:
-            animated_histogram({name: channels[name]}, f"{name} histogram")
+            hist_fig = plot_single_channel_histogram(channels[name], name)
+            st.pyplot(hist_fig)
+            plt.close(hist_fig)
 
     st.divider()
 
     # --- Stage B: histograms ---
     st.subheader("Combined Histogram")
 
-    animated_histogram(channels, "Combined Histogram", combined=show_combined,
-                       luminance=show_luminance)
+    hist_fig = plot_channel_histograms(
+        channels,
+        title="Combined Histogram",
+        show_combined=show_combined,
+        show_luminance=show_luminance,
+    )
+    st.pyplot(hist_fig)
+    plt.close(hist_fig)
 
     st.divider()
 
@@ -299,16 +303,21 @@ def render_frequency_content(channels: dict, names: list, log_scale: bool, show_
     sources = dict(channels)
     if show_luminance_spectrum:
         sources["Luminance"] = 0.299 * channels["R"] + 0.587 * channels["G"] + 0.114 * channels["B"]
-    prepared, bound = prepare_spectrum_channels(sources)
+
     n_channels = len(names)
     for col, name in zip(st.columns(n_channels), names):
         with col:
-            animated_spectrum(prepared[name], f"{name} spectrum", bound=bound, log_scale=log_scale)
-    st.caption("Spectra are calculated live from source rows. Zero frequency is centered; each new row changes the whole spectrum.")
-    maximum = float(np.log1p(bound) if log_scale else bound)
-    st.caption(f"Shared magnitude scale: 0 to {maximum:.2f}.")
+            fft_result = compute_fft(sources[name])
+            spectrum = compute_magnitude_spectrum(fft_result, log_scale=log_scale)
+            fig, ax = plt.subplots(figsize=(3.2, 3.2))
+            ax.imshow(spectrum, cmap="viridis")
+            ax.set_title(f"{name} spectrum")
+            ax.axis("off")
+            st.pyplot(fig)
+            plt.close(fig)
 
-    # --- Row 2: energy share per channel, directly under the spectra ---
+    st.caption("Frequency content is shown as static log-magnitude spectra for the selected preview channels.")
+
     st.markdown(
         """
         <style>
@@ -341,7 +350,13 @@ def render_frequency_content(channels: dict, names: list, log_scale: bool, show_
 
     if show_luminance_spectrum:
         with st.columns(n_channels)[0]:
-            animated_spectrum(prepared["Luminance"], "Luminance spectrum", bound=bound, log_scale=log_scale)
+            fig, ax = plt.subplots(figsize=(3.2, 3.2))
+            spectrum = compute_magnitude_spectrum(compute_fft(sources["Luminance"]), log_scale=log_scale)
+            ax.imshow(spectrum, cmap="viridis")
+            ax.set_title("Luminance spectrum")
+            ax.axis("off")
+            st.pyplot(fig)
+            plt.close(fig)
 
 
 def run_partial_reconstruction(img: np.ndarray, channels: dict) -> None:
@@ -357,16 +372,14 @@ def run_partial_reconstruction(img: np.ndarray, channels: dict) -> None:
     if not tool_ready("Reconstruct image", img):
         return
     channels = split_channels(img)
-    prepared, _ = prepare_spectrum_channels(channels)
-    # The browser inverse transform consumes unshifted complex coefficients.
-    channel_ffts = {name: np.fft.fft2(channel) for name, channel in prepared.items()}
 
     def _render_combo(selected: list, col) -> None:
         with col:
-            result = np.stack([channels[name] if name in selected else np.zeros_like(channels[name])
-                               for name in ("R", "G", "B")], axis=-1)
+            selected_fft = {name: compute_fft(channels[name]) for name in selected}
+            result = reconstruct_partial_image(selected_fft)
+            result = np.clip(np.rint(result), 0, 255).astype(np.uint8)
             queue_comparison(img, result, after_label=" + ".join(selected))
-            animated_reconstruction({name: channel_ffts[name] for name in selected}, " + ".join(selected))
+            st.image(result, caption=" + ".join(selected), width="stretch")
 
     # --- Row 1: all 2-channel combinations ---
     st.markdown("**Two channels**")
@@ -411,23 +424,28 @@ def run_color_space_comparison(img: np.ndarray, channels: dict) -> None:
     st.subheader("Channel Histograms")
     for label, space in spaces:
         st.markdown(f"**{label} histograms**")
-        for col, (name, channel) in zip(st.columns(3), space.items()):
-            with col:
-                animated_histogram({name: channel}, f"{name} histogram")
+        hist_fig = plot_channel_histograms(space, title=f"{label} histogram", show_combined=False, show_luminance=False)
+        st.pyplot(hist_fig)
+        plt.close(hist_fig)
 
     st.subheader("Frequency Content")
     st.caption(
         "Removing the mean highlights spatial detail and removes constant offsets, including neutral chroma. "
-        "All six log-magnitude spectra share one color scale."
+        "Each spectrum below is rendered as a static log-magnitude view."
     )
     sources = {name: channel for _, space in spaces for name, channel in space.items()}
-    prepared, bound = prepare_spectrum_channels(sources, center=center)
     for label, space in spaces:
         st.markdown(f"**{label} spectra**")
         for col, name in zip(st.columns(3), space):
             with col:
-                animated_spectrum(prepared[name], f"{name} spectrum", bound=bound)
-    st.caption(f"Shared magnitude scale: 0 to {np.log1p(bound):.2f} (log scale). Live preview up to 128 pixels per side.")
+                fft_result = compute_fft(space[name])
+                spectrum = compute_magnitude_spectrum(fft_result, log_scale=True)
+                fig, ax = plt.subplots(figsize=(3.2, 3.2))
+                ax.imshow(spectrum, cmap="viridis")
+                ax.set_title(f"{name} spectrum")
+                ax.axis("off")
+                st.pyplot(fig)
+                plt.close(fig)
 
 
 
@@ -849,4 +867,3 @@ if page_comparisons:
 
 
 st.sidebar.divider()
-st.sidebar.caption("Bindu · Image workspace")
