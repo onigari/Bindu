@@ -28,8 +28,9 @@
 \begin{frame}[plain, label=titlepage]
   \begin{beamercolorbox}[wd=\textwidth,sep=1pt,rounded=true,shadow=true]{title}
     \centering
+    \\[7pt]
     {\LARGE \bfseries Bindu}\\[7pt]
-    An Image Processing Workspace
+    An Image Processing Workspace \\[7pt]
     % \maketitle
   \end{beamercolorbox}
 
@@ -59,35 +60,153 @@
     \item An image is a 2D signal: analyze it, transform it, compact it.
     \item Every tool here is one of those three moves.
   \end{itemize}
+  \vspace{0.3cm}
+  \begin{columns}[t]
+    \column{0.33\textwidth}
+      \textbf{\small Analysis}
+      \begin{itemize}\setlength\itemsep{5pt}
+        \item[\scriptsize\textbullet] Color channel separation (R, G, B)
+        \item[\scriptsize\textbullet] Per-channel and combined histograms
+        \item[\scriptsize\textbullet] Luminance histogram
+        \item[\scriptsize\textbullet] 2D FFT log-magnitude spectra
+        % \item[\scriptsize\textbullet] Per-channel energy share
+        \item[\scriptsize\textbullet] Color space comparison (RGB vs.\ YCbCr)
+      \end{itemize}
+    \column{0.33\textwidth}
+      \textbf{\small Processing}
+      \begin{itemize}\setlength\itemsep{5pt}
+        \item[\scriptsize\textbullet] Gaussian and box blur
+        \item[\scriptsize\textbullet] Laplacian sharpening
+        \item[\scriptsize\textbullet] Unsharp masking
+        \item[\scriptsize\textbullet] Per-channel or merged filtering
+        \item[\scriptsize\textbullet] White scratch / dot removal
+        % \item[\scriptsize\textbullet] Gaussian \& salt-and-pepper noise; median, Gaussian, NLM denoising
+      \end{itemize}
+    \column{0.33\textwidth}
+      \textbf{\small Compression}
+      \begin{itemize}\setlength\itemsep{5pt}
+        \item[\scriptsize\textbullet] Partial image reconstruction from channel spectra
+        \item[\scriptsize\textbullet] Fourier energy pruning (lossy)
+        \item[\scriptsize\textbullet] PSNR \& MSE quality metrics
+        % \item[\scriptsize\textbullet] Integer wavelet lifting (lossless)
+        % \item[\scriptsize\textbullet] Pixel-exact round-trip verification
+        % \item[\scriptsize\textbullet] Custom \texttt{.iwv} archive format
+      \end{itemize}
+  \end{columns}
+\end{frame}
+
+
+% ------------------------------------------------------------
+\begin{frame}{Image as a 3D array}
+  \begin{itemize}
+    \item A colour image is a 3D array of shape $H \times W \times 3$.
+    \item The third axis indexes the three colour channels.
+  \end{itemize}
   \vspace{0.4cm}
   \begin{center}
-  \begin{tikzpicture}
-    \node[block] (img) {Image};
-    \node[block, right=0.7cm of img] (an) {Analysis \\ \scriptsize channels, histograms, FFT};
-    \node[block, right=0.7cm of an] (pr) {Processing \\ \scriptsize filtering, restoration};
-    \node[block, right=0.7cm of pr] (co) {Compression \\ \scriptsize lossy \& lossless};
-    \draw[arrow] (img) -- (an);
-    \draw[arrow] (an) -- (pr);
-    \draw[arrow] (pr) -- (co);
+  \begin{tikzpicture}[x={(-0.35cm,-0.35cm)}, y={(1cm,0cm)}, z={(0cm,1cm)},
+                      line join=round]
+    % Dimensions
+    \def\W{4}  % width  (y)
+    \def\H{3}  % height (z)
+    \def\D{3}  % depth  (x) = 3 channels
+
+    % Back face (x = \D)
+    \fill[blue!25, opacity=0.7]
+      (\D,0,0) -- (\D,\W,0) -- (\D,\W,\H) -- (\D,0,\H) -- cycle;
+    % Bottom face
+    \fill[gray!15, opacity=0.6]
+      (0,0,0) -- (\D,0,0) -- (\D,\W,0) -- (0,\W,0) -- cycle;
+    % Front face (x = 0)
+    \fill[red!20, opacity=0.8]
+      (0,0,0) -- (0,\W,0) -- (0,\W,\H) -- (0,0,\H) -- cycle;
+    % Top face
+    \fill[gray!30, opacity=0.6]
+      (0,0,\H) -- (\D,0,\H) -- (\D,\W,\H) -- (0,\W,\H) -- cycle;
+    % Right face (y = \W)
+    \fill[green!20, opacity=0.7]
+      (0,\W,0) -- (\D,\W,0) -- (\D,\W,\H) -- (0,\W,\H) -- cycle;
+
+    % Grid lines on front face
+    \foreach \zz in {0,...,\H}
+      \draw[gray!60, very thin] (0,0,\zz) -- (0,\W,\zz);
+    \foreach \yy in {0,...,\W}
+      \draw[gray!60, very thin] (0,\yy,0) -- (0,\yy,\H);
+    % Grid lines on top face
+    \foreach \yy in {0,...,\W}
+      \draw[gray!60, very thin] (0,\yy,\H) -- (\D,\yy,\H);
+    \foreach \xx in {0,...,\D}
+      \draw[gray!60, very thin] (\xx,0,\H) -- (\xx,\W,\H);
+    % Grid lines on right face
+    \foreach \zz in {0,...,\H}
+      \draw[gray!60, very thin] (0,\W,\zz) -- (\D,\W,\zz);
+    \foreach \xx in {0,...,\D}
+      \draw[gray!60, very thin] (\xx,\W,0) -- (\xx,\W,\H);
+
+    % Outer edges
+    \draw[thick] (0,0,0) -- (\D,0,0) -- (\D,\W,0) -- (0,\W,0) -- cycle;
+    \draw[thick] (0,0,\H) -- (\D,0,\H) -- (\D,\W,\H) -- (0,\W,\H) -- cycle;
+    \draw[thick] (0,0,0) -- (0,0,\H);
+    \draw[thick] (\D,0,0) -- (\D,0,\H);
+    \draw[thick] (\D,\W,0) -- (\D,\W,\H);
+    \draw[thick] (0,\W,0) -- (0,\W,\H);
+
+    % Axis labels
+    \node[font=\small] at (-0.5, \W/2, -0.5) {$W$};
+    \node[font=\small] at (-0.2, -0.5, \H/2) {$H$};
+
+    % Depth label
+    \draw[{Stealth[length=2mm]}-{Stealth[length=2mm]}, thick]
+      (0, \W+0.5, 0) -- (\D, \W+0.5, 0)
+      node[midway, right, font=\scriptsize]{channels};
   \end{tikzpicture}
   \end{center}
+  % \vspace{-0.1cm}
+  % \begin{center}\scriptsize
+  %   \texttt{img[row, col, 0]} = R \quad
+  %   \texttt{img[row, col, 1]} = G \quad
+  %   \texttt{img[row, col, 2]} = B
+  % \end{center}
 \end{frame}
 
 % ------------------------------------------------------------
 \begin{frame}{Channel Separation}
   \begin{itemize}
-    \item RGB = three stacked signals $R(x,y), G(x,y), B(x,y)$.
-    \item BGR vs.\ RGB load order is a classic bug, caught by viewing channels.
+    \item Indexing the third axis extracts a single $H \times W$ plane.
+    \item Each plane is a 2D array of intensities in [0, 255].
   \end{itemize}
-  \vspace{0.3cm}
+  \vspace{0.4cm}
   \begin{center}
-  \begin{tikzpicture}[scale=0.8]
-    \draw[fill=gray!30] (0,0) rectangle (1.6,1.6);
-    \node at (0.8,0.8) {\scriptsize RGB};
-    \draw[arrow] (1.9,0.8) -- (2.6,0.8);
-    \draw[fill=red!30]   (2.9,1.9) rectangle (4.1,3.1) node[midway]{\scriptsize R};
-    \draw[fill=green!30] (2.9,0.4) rectangle (4.1,1.6) node[midway]{\scriptsize G};
-    \draw[fill=blue!30]  (2.9,-1.1) rectangle (4.1,0.1) node[midway]{\scriptsize B};
+  \begin{tikzpicture}[x={(-0.28cm,-0.28cm)}, y={(0.85cm,0cm)}, z={(0cm,0.85cm)},
+                      line join=round]
+    \def\W{4}
+    \def\H{3}
+
+    % Helper macro: draw one filled slice at depth \xx with given fill colour
+    % Slices at x = 0 (R), 1 (G), 2 (B) — separated for clarity
+    \foreach \xx/\fc/\lbl/\clr in {
+        0/red!30/R/red,
+        1.6/green!30/G/green!60!black,
+        3.2/blue!25/B/blue}{
+      % Fill
+      \fill[\fc, opacity=0.85]
+        (\xx,0,0) -- (\xx,\W,0) -- (\xx,\W,\H) -- (\xx,0,\H) -- cycle;
+      % Grid
+      \foreach \zz in {0,...,\H}
+        \draw[gray!50, very thin] (\xx,0,\zz) -- (\xx,\W,\zz);
+      \foreach \yy in {0,...,\W}
+        \draw[gray!50, very thin] (\xx,\yy,0) -- (\xx,\yy,\H);
+      % Border
+      \draw[thick, \clr!60!black]
+        (\xx,0,0) -- (\xx,\W,0) -- (\xx,\W,\H) -- (\xx,0,\H) -- cycle;
+      % Channel label (centred on the face)
+      \node[font=\large\bfseries, \clr!70!black] at (\xx, \W/2, \H/2) {\lbl};
+    }
+
+    % Annotation arrows pointing to each slice
+    \node[font=\scriptsize, red!70!black]         at ( 0.0, \W+1, \H-2.8) {\texttt{img[:,:,0]}};
+    \node[font=\scriptsize, green!60!black]       at ( 1.6, \W+1, \H-2.8) {\texttt{img[:,:,1]}};
+    \node[font=\scriptsize, blue!70!black]        at ( 3.2, \W+1, \H-2.9) {\texttt{img[:,:,2]}};
   \end{tikzpicture}
   \end{center}
 \end{frame}

@@ -3,3 +3,9 @@
 p.py
 q.py
 .venv/
+**/*.aux
+**/*.log
+**/*.nav
+**/*.out
+**/*.toc
+**/*.snm
