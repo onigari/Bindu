@@ -72,3 +72,5 @@ hr { border-color:var(--line) !important; margin:1.5rem 0 !important; }
 [data-testid="stTabs"] [aria-selected="true"] { color: var(--accent); }
 a { color: #80def5; }
 @media(prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
+
+.brand-mark { flex-shrink: 0; }

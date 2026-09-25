@@ -183,7 +183,7 @@ TOOLS = [
     "Compression and decompression",
     "Lossless PNG compression",
     "Filtering",
-    "Old Photo Restoration",
+    "White Scratch Removal",
 ]
 
 
@@ -687,48 +687,24 @@ def _restore_preview(img, settings):
     return restored, mask, compress_png(restored, level=1)
 
 
-def run_old_photo_restoration(img, channels) -> None:
-    st.subheader("Old Photo Restoration")
-    st.caption("Switch each step on or off. Click Restore photo to apply your settings to the original photo.")
+def run_white_scratch_removal(img, channels) -> None:
+    st.caption("Repair small white dots and bright scratches using surrounding pixels.")
     if img.shape[0] * img.shape[1] > 4_000_000:
         st.error("Please use a photo with at most 4 million pixels.")
         return
-    settings = {}
+    settings = {"scratches": True, "repair_dark_scratches": False}
     left, right = st.columns(2)
     with left:
-        settings["lines"] = st.toggle("Remove white stripes / scan lines", key="restore_lines")
-        settings["line_mode"] = st.selectbox("Line removal method",
-            ["Automatic white stripes", "Periodic banding (FFT)"], disabled=not settings["lines"])
-        settings["line_threshold"] = st.slider("Stripe threshold (lower detects fainter lines)",
-            1, 40, 5, disabled=not settings["lines"] or settings["line_mode"] != "Automatic white stripes")
-        settings["period"] = st.slider("Scan-line spacing (pixels)", 2.0, 100.0, 12.0, 0.5,
-                                        disabled=not settings["lines"] or settings["line_mode"] != "Periodic banding (FFT)")
-        settings["line_strength"] = st.slider("Line removal strength", 0.0, 1.0, 1.0, 0.05,
-                                               disabled=not settings["lines"])
-        st.caption("Automatic mode repairs thin white stripes, including slight scan skew. Use FFT for evenly repeating bands. Inspect the mask for real horizontal details.")
-        settings["tint"] = st.toggle("Correct yellow tint / color cast", key="restore_tint")
-        settings["tint_strength"] = st.slider("Color correction strength", 0.0, 1.0, 0.6, 0.05,
-                                               disabled=not settings["tint"])
-        st.caption("Automatic channel balancing assumes the scene averages toward neutral; reduce strength for naturally warm scenes.")
-        settings["contrast"] = st.toggle("Recover faded contrast", key="restore_contrast")
-        settings["contrast_strength"] = st.slider("Contrast recovery strength", 0.0, 1.0, 0.6, 0.05,
-                                                   disabled=not settings["contrast"])
+        settings["scratch_threshold"] = st.slider(
+            "Scratch threshold (higher selects less)", 10, 150, 30)
     with right:
-        settings["denoise"] = st.toggle("Reduce grain / noise", key="restore_denoise")
-        settings["noise_strength"] = st.slider("Noise reduction strength", 1.0, 20.0, 7.0, 1.0,
-                                                disabled=not settings["denoise"])
-        settings["scratches"] = st.toggle("Repair white dots / scratches", key="restore_scratches")
-        settings["scratch_threshold"] = st.slider("Scratch threshold (higher selects less)", 10, 150, 30,
-                                                   disabled=not settings["scratches"])
-        settings["scratch_size"] = st.select_slider("Scratch detection width (pixels)", [3, 5, 7, 11, 15, 21],
-                                                    value=11, disabled=not settings["scratches"])
-        settings["repair_dark_scratches"] = st.checkbox("Also repair dark scratches", disabled=not settings["scratches"])
-        st.caption("Automatic repair can mistake eyes, hair, or texture for scratches. Inspect the mask below and disable this step if needed.")
-    st.caption("Order: scan lines → scratches → grain → color balance → contrast. Missing features cannot be recovered exactly.")
-    if not tool_ready("Restore photo", img, settings):
+        settings["scratch_size"] = st.select_slider(
+            "Scratch detection width (pixels)", [3, 5, 7, 11, 15, 21], value=11)
+    st.caption("Choose a detection width wider than the marks. Inspect the repair mask to check that real details are not selected.")
+    if not tool_ready("Repair white dots / scratches", img, settings):
         return
     try:
-        with st.spinner("Restoring photo and preparing PNG..."):
+        with st.spinner("Repairing white dots and scratches..."):
             restored, mask, png = _restore_preview(img, settings)
     except (ValueError, cv2.error) as exc:
         st.error(str(exc))
@@ -736,15 +712,14 @@ def run_old_photo_restoration(img, channels) -> None:
     original = np.rint(np.clip(img, 0, 255)).astype(np.uint8)
     before, after = st.columns(2)
     before.image(original, caption="Original", width="stretch")
-    after.image(restored, caption="Restored preview", width="stretch")
-    if not any(settings[k] for k in ("lines", "tint", "contrast", "denoise", "scratches")):
-        st.info("All steps are off: the output matches the original RGB pixels.")
-    if settings["scratches"] or (settings["lines"] and settings["line_mode"] == "Automatic white stripes"):
-        with st.expander("Inspect stripe and scratch repair mask", expanded=False):
-            st.image(mask, caption="White pixels are selected for repair", clamp=True, width="stretch")
-            st.caption(f"Selected {np.mean(mask > 0):.2%} of pixels.")
-    queue_comparison(original, restored, after_label="Restored preview")
-    st.download_button("Download restored PNG", png, "restored_photo.png", "image/png", on_click="ignore")
+    after.image(restored, caption="White scratch removal preview", width="stretch")
+    if not mask.any():
+        st.info("No white dots or scratches detected with these settings.")
+    with st.expander("Inspect scratch repair mask", expanded=False):
+        st.image(mask, caption="White pixels are selected for repair", clamp=True, width="stretch")
+        st.caption(f"Selected {np.mean(mask > 0):.2%} of pixels.")
+    queue_comparison(original, restored, after_label="White scratch removal")
+    st.download_button("Download repaired PNG", png, "white_scratch_removed.png", "image/png", on_click="ignore")
 
 
 TOOL_RUNNERS = {
@@ -754,7 +729,7 @@ TOOL_RUNNERS = {
     "Compression and decompression": run_compression,
     "Lossless PNG compression": run_lossless_compression,
     "Filtering": run_spatial_filtering,
-    "Old Photo Restoration": run_old_photo_restoration,
+    "White Scratch Removal": run_white_scratch_removal,
 }
 
 
@@ -795,4 +770,4 @@ if page_comparisons:
 
 
 st.sidebar.divider()
-st.sidebar.caption("Bindu · Color, detail & discovery")
+st.sidebar.caption("Bindu · Image workspace")

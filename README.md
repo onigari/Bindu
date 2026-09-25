@@ -1,39 +1,26 @@
-# Color Channel Analyzer and Image Compressor
+# Bindu
 
-### Old Photo Restoration
+### White Scratch Removal
 
-Choose **Old Photo Restoration** in the sidebar after loading a photo. Each
-step has its own on/off toggle and adjustable controls; all start off:
+Choose **White Scratch Removal** in the sidebar after uploading a photo or
+selecting a sample. This tool repairs white dots and bright scratches only.
 
-- **White stripes / scan lines:** automatic detection and inpainting of thin,
-  bright horizontal marks, including slightly skewed and irregularly spaced
-  stripes. Lower the stripe threshold to detect fainter marks. Strength 1 fully
-  applies the repair. The optional **Periodic banding (FFT)** mode filters row averages, with adjustable
-  spacing and strength. Match spacing to the distance between repeating bands.
-  Narrow frequency notches suppress that frequency and up to eight harmonics
-  while preserving the mean. Best for full-width, regularly spaced interference;
-  real horizontal structures may also be affected.
-- **Yellow tint / color cast:** bounded gray-world channel balancing with a
-  strength control. Naturally warm or strongly colored scenes may need less correction.
-- **Faded contrast:** percentile stretching of Lab lightness, blended by strength.
-- **Grain / noise:** non-local means denoising; higher strengths may soften detail.
-- **White dots / scratches:** bright morphological candidate detection and
-  Telea inpainting. Inspect the white repair-mask pixels before downloading;
-  texture and facial details can be mistaken for damage. Increase the threshold
-  to select fewer pixels. The default 11-pixel detection window handles larger
-  dots; choose a window wider than the damage. Repair includes a one-pixel fringe
-  to avoid white halos. Dark scratch detection is optional. Scratch masks covering
-  over 10% of the photo are rejected; automatic stripe masks have a separate 35% limit.
+- **Scratch threshold:** defaults to 30. Increase it to select fewer marks;
+  lower it to detect fainter damage.
+- **Scratch detection width:** defaults to 11 pixels. Choose a window wider
+  than the dots or scratch thickness.
 
-Processing always starts from the uploaded RGB pixels, in the order scan lines,
-scratches, grain, color balance, then contrast. Side-by-side and wipe comparisons
-show the result. Download uses the custom lossless PNG encoder. All steps off
-preserves the rounded 8-bit RGB pixels exactly. Photos are limited to 4 million
-pixels. This feature improves visible information; it cannot reconstruct large
-missing regions or guarantee original colors. No reference-free accuracy score
-is claimed. Tests use controlled synthetic damage to check restoration behavior.
-The sample gallery includes the AI-generated old photo shown in the conversation.
-It is an illustrative damaged input, not a clean reference or a restoration result.
+Click **Repair white dots / scratches** to process the image. Changing the
+image or settings requires another click. Inspect the repair mask, compare
+results with the wipe at the bottom, and download the repaired PNG.
+
+Detection uses a grayscale white top-hat operation, thresholding, and a
+one-pixel mask expansion. Telea inpainting fills selected pixels from their
+surroundings. Masks covering over 10% of the image are rejected. The tool may
+mistake genuine bright details for damage; it cannot recover missing original
+detail with certainty. Images are limited to 4 million pixels.
+
+Uploads remain selected when switching between the other image tools.
 
 TODO:
 - [x] separate an input image into red, green, and blue channels

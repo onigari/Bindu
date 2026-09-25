@@ -1,4 +1,4 @@
-"""Presentation helpers for the Bindu Streamlit workspace."""
+"""Presentation helpers for the Bindu workspace."""
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -12,7 +12,7 @@ TOOL_DETAILS = {
     "Compression and decompression": ("Fourier compression", "Find the balance between retained frequency detail and archive size."),
     "Lossless PNG compression": ("Lossless PNG", "Compress and recover your image with exact preservation of its 8-bit RGB pixels."),
     "Filtering": ("Image filters", "Fine-tune texture and detail with blur and sharpening controls."),
-    "Old Photo Restoration": ("Photo restoration", "Carefully reduce visible damage and bring faded photographs back into focus."),
+    "White Scratch Removal": ("White Scratch Removal", "Detect and repair white dots and bright scratches in your photographs."),
 }
 
 
@@ -30,7 +30,7 @@ def apply_style():
 
 
 def render_brand():
-    st.markdown('<div class="brand"><span class="brand-mark">b.</span><div>bindu<span class="brand-caption">IMAGE WORKSPACE</span></div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="brand"><span class="brand-mark">b.</span><div>Bindu<span class="brand-caption">IMAGE WORKSPACE</span></div></div>', unsafe_allow_html=True)
 
 
 def render_header(tool):
