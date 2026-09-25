@@ -10,7 +10,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import streamlit as st
-from animated_histograms import animated_histogram, animated_spectrum, prepare_spectrum_channels
+from animated_histograms import (
+    animated_histogram, animated_spectrum, animated_reconstruction,
+    prepare_spectrum_channels,
+)
 from ui import apply_style, render_brand, render_header, TOOL_DETAILS
 
 from imgutil.core import *
@@ -333,19 +336,16 @@ def run_partial_reconstruction(img: np.ndarray, channels: dict) -> None:
 
     st.divider()
 
+    st.caption("Live inverse Fourier reconstruction uses a preview up to 128 pixels per side. Each step adds a frequency row to the image; scrub backward to remove it.")
     if not tool_ready("Reconstruct image", img):
         return
-
-    # Pre-compute FFTs once
-    channel_ffts = {name: _cached_fft(channels[name]) for name in "RGB"}
+    prepared, _ = prepare_spectrum_channels(channels)
+    # The browser inverse transform consumes unshifted complex coefficients.
+    channel_ffts = {name: np.fft.fft2(channel) for name, channel in prepared.items()}
 
     def _render_combo(selected: list, col) -> None:
-        spectra = {name: channel_ffts[name] for name in selected}
-        reconstructed = reconstruct_partial_image(spectra)
-        preview = np.rint(np.clip(reconstructed, 0, 255)).astype(np.uint8)
-        label = " + ".join(selected)
         with col:
-            st.image(preview, caption=label, width="stretch")
+            animated_reconstruction({name: channel_ffts[name] for name in selected}, " + ".join(selected))
 
     # --- Row 1: all 2-channel combinations ---
     st.markdown("**Two channels**")
