@@ -1,0 +1,110 @@
+% Shared preamble for both Bindu decks (compile with XeLaTeX)
+\usefonttheme{professionalfonts}
+\usepackage{amsmath,amssymb}
+\usepackage[no-math]{fontspec}
+\defaultfontfeatures{Ligatures=TeX}
+\setsansfont{Inter}[
+  Path=./fonts/,
+  Extension=.ttf,
+  UprightFont=*-400-normal,
+  BoldFont=*-700-normal,
+  ItalicFont=*-400-italic,
+  BoldItalicFont=*-700-italic
+]
+\newfontfamily\headfont{Montserrat}[
+  Path=./fonts/,
+  Extension=.ttf,
+  UprightFont=*-700-normal,
+  BoldFont=*-800-normal
+]
+\newfontfamily\semifont{Montserrat}[
+  Path=./fonts/,
+  Extension=.ttf,
+  UprightFont=*-600-normal,
+  BoldFont=*-700-normal
+]
+\newfontfamily\bodysemi{Inter}[
+  Path=./fonts/,
+  Extension=.ttf,
+  UprightFont=*-600-normal
+]
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,fit,backgrounds,shapes.misc,decorations.pathreplacing}
+\usepackage[most]{tcolorbox}
+\usepackage{array,booktabs}
+
+% ---------------------------------------------------------------- colours
+\setbeamercolor{background canvas}{bg=bg}
+\setbeamercolor{normal text}{fg=ink,bg=bg}
+\setbeamercolor{structure}{fg=accent}
+\setbeamercolor{frametitle}{fg=ink}
+\setbeamercolor{alerted text}{fg=accenttext}
+\setbeamercolor{item}{fg=accent}
+\setbeamercolor{math text}{fg=ink}
+
+% ---------------------------------------------------------------- layout
+\setbeamertemplate{navigation symbols}{}
+\setbeamersize{text margin left=10mm,text margin right=10mm}
+\setbeamertemplate{itemize item}{\raisebox{0.25ex}{\color{accent}\rule{1.3mm}{1.3mm}}}
+\setbeamertemplate{itemize subitem}{\color{muted}--}
+\setlength{\leftmargini}{4mm}
+
+\setbeamertemplate{headline}{%
+  \vskip3mm\hskip10mm%
+  \ifnum\insertframenumber>1\relax
+    {\color{muted}\semifont\fontsize{6.5}{7}\selectfont\MakeUppercase{\insertsectionhead}}\fi\hfill
+  \ifnum\insertframenumber>1\relax
+    \begin{tikzpicture}[baseline=-0.5ex]
+      \foreach \i in {0,...,14}{
+          \pgfmathtruncatemacro{\n}{\i+1}
+          \ifnum\n=\insertframenumber\relax
+            \fill[accent] (\i*0.19,0) circle (0.055);
+          \else
+            \fill[panelborder] (\i*0.19,0) circle (0.04);
+          \fi}
+    \end{tikzpicture}\fi
+  \hskip10mm}
+
+\setbeamertemplate{frametitle}{%
+  \vskip0.5mm{\headfont\fontsize{15}{18}\selectfont\color{ink}\insertframetitle}\par
+  \vskip1mm{\color{accent}\rule{11mm}{1.5pt}}\vskip-6mm}
+
+\setbeamertemplate{footline}{%
+  \ifnum\insertframenumber>1\relax
+    \hskip10mm{\color{muted}\fontsize{6.5}{7}\selectfont\semifont Bindu}\hfill
+    {\color{muted}\fontsize{6.5}{7}\selectfont\semifont\insertframenumber\,/\,\inserttotalframenumber}\hskip10mm\par\vskip2mm
+    \begin{tikzpicture}
+      \fill[panelborder] (0,0) rectangle (\paperwidth,0.6mm);
+      \fill[accent] (0,0) rectangle ({\paperwidth*\insertframenumber/\inserttotalframenumber},0.6mm);
+    \end{tikzpicture}\fi}
+
+% ---------------------------------------------------------------- components
+\newcommand{\cardlabel}[1]{{\semifont\fontsize{6.5}{7.5}\selectfont\color{accenttext}\MakeUppercase{#1}}\par\vspace{0.6mm}}
+\newcommand{\cardsetup}{\raggedright\setlength\abovedisplayskip{3pt}\setlength\belowdisplayskip{3pt}%
+  \setlength\abovedisplayshortskip{2pt}\setlength\belowdisplayshortskip{2pt}}
+\newtcolorbox{card}[2][]{enhanced, colback=panel, colframe=panelborder, boxrule=0.5pt,
+  arc=2mm, left=2.2mm, right=2.2mm, top=1.5mm, bottom=1.5mm, before skip=0.5mm, after skip=0.5mm,
+  fontupper=\footnotesize\color{ink}, before upper={\cardsetup\ifx&#2&\else\cardlabel{#2}\fi}, #1}
+\newtcolorbox{hotcard}[2][]{enhanced, colback=accentsoft, colframe=accent, boxrule=0.6pt,
+  arc=2mm, left=2.2mm, right=2.2mm, top=1.5mm, bottom=1.5mm, before skip=0.5mm, after skip=0.5mm,
+  fontupper=\footnotesize\color{ink}, before upper={\cardsetup\ifx&#2&\else\cardlabel{#2}\fi}, #1}
+
+\newcommand{\hl}[1]{{\color{accenttext}\bodysemi #1}}
+\newcommand{\capt}[1]{{\fontsize{7}{8.5}\selectfont\color{muted}#1}}
+\newcommand{\pilltag}[1]{\tikz[baseline=(t.base)]\node[fill=accentsoft,draw=accent,line width=0.4pt,rounded corners=1.2mm,inner xsep=1.4mm,inner ysep=0.8mm,font=\fontsize{6.5}{7}\selectfont\semifont,text=accenttext](t){#1};}
+\newcommand{\img}[2]{\tikz[baseline=(i.south)]{\node[inner sep=0pt](i){\includegraphics[width=#1]{#2}};
+    \draw[panelborder,line width=0.6pt](i.south west) rectangle (i.north east);}}
+\newcommand{\plot}[2]{\includegraphics[width=#1]{figs/\figtheme/#2}}
+\newcommand{\lbl}[1]{{\fontsize{6.5}{7.5}\selectfont\semifont\color{muted}#1}}
+
+\tikzset{
+  box/.style={draw=panelborder, fill=panel, rounded corners=1.8mm, text=ink,
+      font=\fontsize{7.5}{9}\selectfont, align=center, inner sep=1.6mm, minimum height=8mm},
+  hot/.style={box, draw=accent, fill=accentsoft},
+  flow/.style={-{Stealth[length=1.8mm,width=1.6mm]}, accent, line width=0.8pt},
+  thin flow/.style={-{Stealth[length=1.5mm]}, muted, line width=0.5pt},
+}
+\newcommand{\eqn}[1]{\par\vspace{0.6mm}{\centering\mbox{$\displaystyle #1$}\par}\vspace{0.6mm}}
+\newcommand{\dn}[2]{\img{0.225\linewidth}{figs/img/#1.jpg}}
+\newcommand{\dnb}[1]{\tikz[baseline=(i.south)]{\node[inner sep=0pt](i){\includegraphics[width=0.225\linewidth]{figs/img/#1.jpg}};\draw[accent,line width=1.4pt](i.south west) rectangle (i.north east);}}

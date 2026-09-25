@@ -234,8 +234,9 @@
   \begin{itemize}
     \item Image $\rightarrow$ sum of 2D sinusoids of varying spatial frequency.
     \item \texttt{fftshift} centers DC; log-magnitude makes the spectrum viewable.
+    \item Parseval's theorem: energy in space = energy in frequency.
   \end{itemize}
-  \vspace{0.3cm}
+  \vspace{0.5cm}
   \begin{center}
   \begin{tikzpicture}
     \node[block] (img) {Spatial\\ image};
@@ -247,7 +248,6 @@
     \draw[arrow] (shift) -- (log);
   \end{tikzpicture}
   \end{center}
-  \begin{center}\scriptsize Parseval: energy in space = energy in frequency\end{center}
 \end{frame}
 
 % ------------------------------------------------------------
