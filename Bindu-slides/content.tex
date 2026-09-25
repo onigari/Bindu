@@ -192,24 +192,42 @@ Fix an old photo? & morphology, inpainting\\
 
 
 \begin{frame}{An image is three 2D signals stacked together}
-\vspace{3mm}
+\vspace{4mm}
 \begin{columns}[T,onlytextwidth]
 \column{0.4\textwidth}
 \centering
-\begin{tikzpicture}[x={(-0.28cm,-0.28cm)}, y={(0.85cm,0cm)}, z={(0cm,0.85cm)}, line join=round]
-  \foreach \xx/\fc/\l in {3.2/Bc/B, 1.6/Gc/G, 0/Rc/R}{
-    \fill[\fc!40!bg] (\xx,0,0) -- (\xx,3.2,0) -- (\xx,3.2,2.4) -- (\xx,0,2.4) -- cycle;
-    \foreach \zz in {0,0.8,...,2.4} \draw[\fc, line width=0.3pt] (\xx,0,\zz) -- (\xx,3.2,\zz);
-    \foreach \yy in {0,0.8,...,3.2} \draw[\fc, line width=0.3pt] (\xx,\yy,0) -- (\xx,\yy,2.4);
-    \draw[\fc, line width=0.9pt] (\xx,0,0) -- (\xx,3.2,0) -- (\xx,3.2,2.4) -- (\xx,0,2.4) -- cycle;
-    % \node[font=\semifont\scriptsize, text=\fc!70!ink] at (\xx,3.2,2.4) [above right=-0.5mm] {\l};
+\begin{tikzpicture}[x={(-0.28cm,-0.28cm)}, y={(0.85cm,0cm)}, z={(0cm,0.85cm)},
+                      line join=round]
+    \def\W{4}
+    \def\H{3}
+
+    % Helper macro: draw one filled slice at depth \xx with given fill colour
+    % Slices at x = 0 (R), 1 (G), 2 (B) — separated for clarity
+    \foreach \xx/\fc/\lbl/\clr in {
+        0/red!30/R/red,
+        1.6/green!30/G/green!60!black,
+        3.2/blue!25/B/blue}{
+      % Fill
+      \fill[\fc, opacity=0.85]
+        (\xx,0,0) -- (\xx,\W,0) -- (\xx,\W,\H) -- (\xx,0,\H) -- cycle;
+      % Grid
+      \foreach \zz in {0,...,\H}
+        \draw[gray!50, very thin] (\xx,0,\zz) -- (\xx,\W,\zz);
+      \foreach \yy in {0,...,\W}
+        \draw[gray!50, very thin] (\xx,\yy,0) -- (\xx,\yy,\H);
+      % Border
+      \draw[thick, \clr!60!black]
+        (\xx,0,0) -- (\xx,\W,0) -- (\xx,\W,\H) -- (\xx,0,\H) -- cycle;
+      % Channel label (centred on the face)
+      \node[font=\large\bfseries, \clr!70!black] at (\xx, \W/2, \H/2) {\lbl};
     }
-  % \node[font=\semifont\large, text=ink] at (0,1.6,1.2) {$x_R$};
-  \draw[{Stealth[length=1.5mm]}-{Stealth[length=1.5mm]}, muted] (0,0,-0.3) -- (0,3.2,-0.3) node[midway, below=0.2mm, font=\scriptsize]{$W$};
-  \draw[{Stealth[length=1.5mm]}-{Stealth[length=1.5mm]}, muted] (0,-0.3,0) -- (0,-0.3,2.4) node[midway, left, font=\scriptsize]{$H$};
-  \draw[{Stealth[length=1.5mm]}-{Stealth[length=1.5mm]}, muted] (0,3.5,0) -- (3.2,3.5,0) node[midway, below right=-0.5mm, font=\scriptsize]{3 channels};
-\end{tikzpicture}
-\vspace{4mm}
+
+    % Annotation arrows pointing to each slice
+    \node[font=\scriptsize, red!70!black]         at ( 0.0, \W+0.8, \H-2.8) {\texttt{img[:,:,0]}};
+    \node[font=\scriptsize, green!60!black]       at ( 1.6, \W+0.8, \H-2.8) {\texttt{img[:,:,1]}};
+    \node[font=\scriptsize, blue!70!black]        at ( 3.2, \W+0.8, \H-2.9) {\texttt{img[:,:,2]}};
+  \end{tikzpicture}
+\vspace{2mm}
 \begin{card}{}
 \centering
 $x_c[m,n],\quad c\in\{R,G,B\}$\\[0.8mm]
