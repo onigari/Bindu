@@ -3,13 +3,14 @@ Run with:
     streamlit run app.py
 """
 import cv2
+import hashlib
 from pathlib import Path
 
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import streamlit as st
-from ui import apply_style, render_brand, render_header, render_welcome, TOOL_DETAILS
+from ui import apply_style, render_brand, render_header, TOOL_DETAILS
 
 from imgutil.core import *
 from imgutil.color_spaces import rgb_to_ycbcr
@@ -184,8 +185,55 @@ TOOLS = [
 # Tool implementations
 # ---------------------------------------------------------------------------
 
+def tool_ready(label, source, settings=None, key="run"):
+    """Require explicit approval again whenever the input or settings change."""
+    data = source.tobytes() if isinstance(source, np.ndarray) else source
+    signature = hashlib.sha256(data + repr(settings).encode()).hexdigest()
+    state_key = f"approved_{selected_tool}_{key}"
+    if st.session_state.get(state_key) != signature:
+        st.session_state.pop(state_key, None)
+    if st.button(label, key=f"{selected_tool}_{key}", type="primary"):
+        st.session_state[state_key] = signature
+    return st.session_state.get(state_key) == signature
+
+
+def image_picker(tool):
+    st.subheader("Your image")
+    source_mode = st.radio("Load from", ["Upload", "Sample gallery"],
+                           key=f"{tool}_source", horizontal=True)
+    img = None
+    if source_mode == "Upload":
+        uploaded = st.file_uploader("Choose an image", type=["png", "jpg", "jpeg", "bmp"],
+                                    key=f"{tool}_upload")
+        if uploaded is not None:
+            try:
+                img = load_uploaded_image(uploaded)
+            except ValueError as exc:
+                st.error(str(exc))
+    else:
+        sample = st.selectbox("Sample image", list(SAMPLE_IMAGES), key=f"{tool}_sample")
+        try:
+            img = SAMPLE_IMAGES[sample]()
+        except (ValueError, OSError) as exc:
+            st.error(f"Could not load the sample: {exc}")
+    if img is None:
+        # Clearing the source must also clear permission to process it.
+        for key in list(st.session_state):
+            if key.startswith(f"approved_{tool}_"):
+                del st.session_state[key]
+        st.info("Upload an image or choose a sample to get started.")
+    return img
+
+
 def run_color_channel_analyzer(img: np.ndarray, channels: dict) -> None:
     """Stage A + B: channel separation and histograms."""
+    channel_view_mode = st.radio("Channel display style", ["Grayscale", "Tinted color"], horizontal=True)
+    show_combined = st.checkbox("Show combined histogram", value=True)
+    show_luminance = st.checkbox("Show luminance histogram", value=False)
+    log_scale = st.checkbox("Log-scale magnitude", value=True)
+    show_luminance_spectrum = st.checkbox("Show combined luminance spectrum", value=True)
+    if not tool_ready("Analyze image", img, (channel_view_mode, show_combined, show_luminance, log_scale, show_luminance_spectrum)):
+        return
     with st.expander("Source image", expanded=False):
         st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
 
@@ -193,8 +241,6 @@ def run_color_channel_analyzer(img: np.ndarray, channels: dict) -> None:
 
     # --- Stage A: channel separation ---
     st.subheader("Color Channels")
-    channel_view_mode = st.radio("Channel display style", ["Grayscale", "Tinted color"], horizontal=True)
-
     col_r, col_g, col_b = st.columns(3)
     cols = [col_r, col_g, col_b]
     names = ["R", "G", "B"]
@@ -221,12 +267,6 @@ def run_color_channel_analyzer(img: np.ndarray, channels: dict) -> None:
     # --- Stage B: histograms ---
     st.subheader("Combined Histogram")
 
-    hist_col1, hist_col2 = st.columns(2)
-    with hist_col1:
-        show_combined = st.checkbox("Show combined histogram", value=True)
-    with hist_col2:
-        show_luminance = st.checkbox("Show luminance histogram", value=False)
-
     fig = plot_channel_histograms(
         channels,
         title="Combined Histogram",
@@ -238,18 +278,11 @@ def run_color_channel_analyzer(img: np.ndarray, channels: dict) -> None:
 
     st.divider()
 
-    render_frequency_content(channels, names)
+    render_frequency_content(channels, names, log_scale, show_luminance_spectrum)
 
 
-@st.fragment
-def render_frequency_content(channels: dict, names: list) -> None:
+def render_frequency_content(channels: dict, names: list, log_scale: bool, show_luminance_spectrum: bool) -> None:
     st.subheader("Frequency Content")
-
-    freq_col1, freq_col2 = st.columns(2)
-    with freq_col1:
-        log_scale = st.checkbox("Log-scale magnitude", value=True)
-    with freq_col2:
-        show_luminance_spectrum = st.checkbox("Show combined luminance spectrum", value=True)
 
     channel_spectra = {}
     for name in names:
@@ -333,6 +366,9 @@ def run_partial_reconstruction(img: np.ndarray, channels: dict) -> None:
 
     st.divider()
 
+    if not tool_ready("Reconstruct image", img):
+        return
+
     # Pre-compute FFTs once
     channel_ffts = {name: _cached_fft(channels[name]) for name in "RGB"}
 
@@ -368,6 +404,9 @@ def run_color_space_comparison(img: np.ndarray, channels: dict) -> None:
         "This comparison uses full-range values from 0 to 255, with neutral chroma at 128. "
         "Conversion alone does not compress the image."
     )
+    center = st.checkbox("Remove channel mean before FFT", value=True, key="color_space_center")
+    if not tool_ready("Compare color spaces", img, center):
+        return
     converted = rgb_to_ycbcr(img)
     ycbcr = {name: converted[:, :, i] for i, name in enumerate(("Y", "Cb", "Cr"))}
     spaces = [("RGB", channels), ("YCbCr", ycbcr)]
@@ -389,7 +428,6 @@ def run_color_space_comparison(img: np.ndarray, channels: dict) -> None:
     plt.close(fig)
 
     st.subheader("Frequency Content")
-    center = st.checkbox("Remove channel mean before FFT", value=True, key="color_space_center")
     st.caption(
         "Removing the mean highlights spatial detail and removes constant offsets, including neutral chroma. "
         "All six log-magnitude spectra share one color scale."
@@ -422,6 +460,9 @@ def run_compression(img, channels) -> None:
         st.caption("Upload a Fourier .npz file downloaded from this tool. The original image is not required.")
         uploaded = st.file_uploader("Compressed image", type=["npz"], key="compressed_image")
         if uploaded is None:
+            st.session_state.pop(f"approved_{selected_tool}_decompress", None)
+            return
+        if not tool_ready("Decompress image", uploaded.getvalue(), key="decompress"):
             return
         try:
             restored = decompress_image(uploaded.getvalue())
@@ -430,11 +471,11 @@ def run_compression(img, channels) -> None:
             return
         st.image(restored, caption="Decompressed image", width="stretch")
         st.caption(f"{restored.shape[1]} × {restored.shape[0]} pixels")
-        st.download_button("Download decompressed PNG", _png_bytes(restored), "decompressed.png", "image/png")
+        st.download_button("Download decompressed PNG", _png_bytes(restored), "decompressed.png", "image/png", on_click="ignore")
         return
 
+    img = image_picker(selected_tool)
     if img is None:
-        st.info("Upload an image or choose a sample in the sidebar to compress.")
         return
     st.caption(
         "Keep the strongest Fourier harmonics in each RGB channel until the selected energy target is reached. "
@@ -486,6 +527,9 @@ def run_lossless_compression(img, channels) -> None:
         st.caption("Upload an 8-bit RGB PNG from this tool. No original image is needed.")
         uploaded = st.file_uploader("Lossless PNG", type=["png"], key="lossless_upload")
         if uploaded is None:
+            st.session_state.pop(f"approved_{selected_tool}_decompress", None)
+            return
+        if not tool_ready("Decompress PNG", uploaded.getvalue(), key="decompress"):
             return
         try:
             restored = decompress_png(uploaded.getvalue())
@@ -494,11 +538,11 @@ def run_lossless_compression(img, channels) -> None:
             return
         st.image(restored, caption="Decoded RGB pixels", width="stretch")
         st.caption(f"{restored.shape[1]} × {restored.shape[0]} pixels · {restored.nbytes:,} raw RGB bytes")
-        st.download_button("Download uncompressed BMP", encode_bmp(restored), "decompressed.bmp", "image/bmp")
+        st.download_button("Download uncompressed BMP", encode_bmp(restored), "decompressed.bmp", "image/bmp", on_click="ignore")
         return
 
+    img = image_picker(selected_tool)
     if img is None:
-        st.info("Upload an image or choose a sample in the sidebar to compress.")
         return
     st.caption(
         "Our custom PNG encoder uses reversible row filters, LZ77, and Huffman coding to preserve every 8-bit RGB pixel. "
@@ -555,6 +599,9 @@ def run_spatial_filtering(img: np.ndarray, channels: dict) -> None:
             else:
                 kwargs[param["name"]] = st.slider(param["label"], param["min"], param["max"], param["default"], step=param["step"],)
 
+    if not tool_ready("Apply filter", img, (filter_name, kwargs)):
+        return
+
     chan_fn = config["channel_fn"]
     merged_fn = config["merged_fn"]
 
@@ -604,7 +651,7 @@ def _restore_preview(img, settings):
 
 def run_old_photo_restoration(img, channels) -> None:
     st.subheader("Old Photo Restoration")
-    st.caption("Switch each step on or off. Results update from the original photo, so adjustments never accumulate.")
+    st.caption("Switch each step on or off. Click Restore photo to apply your settings to the original photo.")
     if img.shape[0] * img.shape[1] > 4_000_000:
         st.error("Please use a photo with at most 4 million pixels.")
         return
@@ -640,6 +687,8 @@ def run_old_photo_restoration(img, channels) -> None:
         settings["repair_dark_scratches"] = st.checkbox("Also repair dark scratches", disabled=not settings["scratches"])
         st.caption("Automatic repair can mistake eyes, hair, or texture for scratches. Inspect the mask below and disable this step if needed.")
     st.caption("Order: scan lines → scratches → grain → color balance → contrast. Missing features cannot be recovered exactly.")
+    if not tool_ready("Restore photo", img, settings):
+        return
     try:
         with st.spinner("Restoring photo and preparing PNG..."):
             restored, mask, png = _restore_preview(img, settings)
@@ -685,53 +734,23 @@ apply_style()
 with st.sidebar:
     render_brand()
 
-# --- Image source selection ---
-st.sidebar.subheader("01 / Your image")
-source_mode = st.sidebar.radio("Load from", ["Upload", "Sample gallery"], key="source_mode", horizontal=True, label_visibility="collapsed")
-
-img = None
-
-if source_mode == "Upload":
-    uploaded_file = st.sidebar.file_uploader("Choose an image", type=["png", "jpg", "jpeg", "bmp"])
-    if uploaded_file is not None:
-        try:
-            img = load_uploaded_image(uploaded_file)
-        except ValueError as exc:
-            st.error(str(exc))
-
-else:
-    sample_name = st.sidebar.selectbox("Sample image", list(SAMPLE_IMAGES.keys()), key="sample_name")
-    try:
-        img = SAMPLE_IMAGES[sample_name]()
-    except (ValueError, OSError) as exc:
-        st.error(f"Could not load the sample: {exc}")
-
-# st.sidebar.caption(f"Image shape: {img.shape[0]} x {img.shape[1]}")
-
 # --- Tool selection ---
-st.sidebar.divider()
-st.sidebar.subheader("02 / Explore tools")
+st.sidebar.subheader("Explore tools")
 selected_tool = st.sidebar.radio("Choose a tool", TOOLS, format_func=lambda tool: TOOL_DETAILS[tool][0], label_visibility="collapsed")
 st.sidebar.divider()
 st.sidebar.caption("A little curiosity. A new perspective.")
 st.sidebar.caption("Bindu · Color, detail & discovery")
 
 render_header(selected_tool)
-if img is not None:
-    with st.expander(f"Active image · {img.shape[1]:,} × {img.shape[0]:,} px · RGB", expanded=False):
-        st.caption("Change your image in the sidebar. All tools use this source image.")
-
+if st.session_state.get("active_tool") != selected_tool:
+    for key in list(st.session_state):
+        if key.startswith("approved_"):
+            del st.session_state[key]
+    st.session_state["active_tool"] = selected_tool
 
 if selected_tool in ("Compression and decompression", "Lossless PNG compression"):
-    TOOL_RUNNERS[selected_tool](img, None)
-    st.stop()
-
-if img is None:
-    render_welcome(SAMPLE_IMAGES)
-    st.stop()
-
-
-channels = split_channels(img)
-
-# --- Main content ---
-TOOL_RUNNERS[selected_tool](img, channels)
+    TOOL_RUNNERS[selected_tool](None, None)
+else:
+    img = image_picker(selected_tool)
+    if img is not None:
+        TOOL_RUNNERS[selected_tool](img, split_channels(img))
