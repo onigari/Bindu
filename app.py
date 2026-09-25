@@ -245,6 +245,8 @@ def image_picker(tool):
 
 def run_color_channel_analyzer(img: np.ndarray, channels: dict) -> None:
     """Stage A + B: channel separation and histograms."""
+    with st.expander("Source image", expanded=False):
+        st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
     channel_view_mode = st.radio("Channel display style", ["Grayscale", "Tinted color"], horizontal=True)
     show_combined = st.checkbox("Show combined histogram", value=True)
     show_luminance = st.checkbox("Show luminance histogram", value=False)
@@ -253,8 +255,6 @@ def run_color_channel_analyzer(img: np.ndarray, channels: dict) -> None:
     if not tool_ready("Analyze image", img, (channel_view_mode, show_combined, show_luminance, log_scale, show_luminance_spectrum)):
         return
     channels = split_channels(img)
-    with st.expander("Source image", expanded=False):
-        st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
 
     st.divider()
 
@@ -348,7 +348,8 @@ def run_partial_reconstruction(img: np.ndarray, channels: dict) -> None:
     st.subheader("Partial Image Reconstruction")
     st.caption("Reconstruct using only a subset of RGB channels.")
 
-    st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
+    with st.expander("Source image", expanded=False):
+        st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
 
     st.divider()
 
@@ -384,7 +385,8 @@ def run_partial_reconstruction(img: np.ndarray, channels: dict) -> None:
 
 def run_color_space_comparison(img: np.ndarray, channels: dict) -> None:
     st.subheader("RGB vs YCbCr")
-    st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
+    with st.expander("Source image", expanded=False):
+        st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
     st.caption(
         "RGB stores red, green, and blue intensities. YCbCr separates luma (Y) "
         "from blue-difference (Cb) and red-difference (Cr) color information. "
@@ -475,6 +477,8 @@ def run_compression(img, channels) -> None:
 
     if img is None:
         return
+    with st.expander("Source image", expanded=False):
+        st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
     st.caption(
         "Keep the strongest Fourier harmonics in each RGB channel until the selected energy target is reached. "
         "Lower targets usually create smaller files with more detail loss. Removed information cannot be recovered."
@@ -547,6 +551,8 @@ def run_lossless_compression(img, channels) -> None:
 
     if img is None:
         return
+    with st.expander("Source image", expanded=False):
+        st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
     st.caption(
         "Reversible integer Haar wavelets separate the image into averages and detail signals. "
         "Every coefficient is retained and compressed with LZ77 and Huffman coding, preserving every 8-bit RGB pixel. "
@@ -638,7 +644,8 @@ def render_kernel_visualizer(filter_name, params):
 
 
 def run_spatial_filtering(img: np.ndarray, channels: dict) -> None:
-    st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
+    with st.expander("Source image", expanded=False):
+        st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
 
     st.divider()
 
@@ -695,6 +702,8 @@ def _restore_preview(img, settings):
 
 
 def run_white_scratch_removal(img, channels) -> None:
+    with st.expander("Source image", expanded=False):
+        st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
     st.caption("Repair small white dots and bright scratches using surrounding pixels.")
     if img.shape[0] * img.shape[1] > 4_000_000:
         st.error("Please use a photo with at most 4 million pixels.")
@@ -738,6 +747,8 @@ def _noise_preview(img, mode, kind, amount, seed, method, size, strength):
 
 
 def run_noise_tool(img, channels):
+    with st.expander("Source image", expanded=False):
+        st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
     mode = st.radio("Operation", ["Add noise", "Remove noise", "Add then remove"],
                     horizontal=True, key="noise_mode")
     kind, amount, seed = "Gaussian", 20.0, 42
