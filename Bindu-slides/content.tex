@@ -376,11 +376,12 @@ S\&P: \; $y\in\{0,255\}$ with prob.\ $p$, else $x$
 \end{card}\vspace{1mm}
 \begin{card}{Median filter (non-linear)}
 \eqn{y[m,n] = \operatorname{median}_{\,|i|,|j|\le 2}\; x[m+i,\,n+j]}
-\capt{A lone 0 or 255 is never the middle value, so it is dropped, not averaged in.}
+\vspace{0.5em}
+\capt{A lone 0 or 255 is never the middle value, so it is dropped.}
 \end{card}\vspace{1mm}
 \begin{hotcard}[fontupper=\scriptsize\color{ink}]{Non-local means}
 \eqn{\hat x(p) = \frac{\sum_q w(p,q)\,x(q)}{\sum_q w(p,q)}}
-\eqn{w(p,q) = e^{-\|P_p-P_q\|^2/h^2}}
+\eqn{w(p,q) = e^{-\frac{\|P_p-P_q\|^2}{h^2}}}
 \end{hotcard}
 \column{0.54\textwidth}
 \centering
@@ -391,6 +392,7 @@ S\&P: \; $y\in\{0,255\}$ with prob.\ $p$, else $x$
 \dn{dn_sp_noisy}{}\hspace{0.8mm}\dnb{dn_sp_med}\hspace{0.8mm}\dn{dn_sp_gb}{}\hspace{0.8mm}\dn{dn_sp_nlm}{}\\[0.3mm]
 \makebox[0.225\linewidth]{\lbl{noisy 15.8 dB}}\hspace{0.8mm}\makebox[0.225\linewidth]{{\fontsize{6.5}{7.5}\selectfont\semifont\color{accenttext}median 35.8}}\hspace{0.8mm}\makebox[0.225\linewidth]{\lbl{Gaussian 26.2}}\hspace{0.8mm}\makebox[0.225\linewidth]{\lbl{NL-means 16.2}}\\[1mm]
 \begin{minipage}{0.95\linewidth}\centering
+  \vspace{1em}
 \capt{PSNR vs.\ the clean crop ($5\times5$ windows, $h=15$).}
 \end{minipage}
 \end{columns}
@@ -405,7 +407,7 @@ S\&P: \; $y\in\{0,255\}$ with prob.\ $p$, else $x$
 $X[k,l] = X^{*}[-k,\,-l]$ $\Rightarrow$ store only half.
 \end{card}\vspace{1mm}
 \begin{card}{Energy pruning, target $\eta$}
-Rank pairs by $E_p = w_p|X_p|^2$; keep the fewest (DC always) with
+{\scriptsize Rank pairs by $E_p = w_p|X_p|^2$; keep the fewest (DC always) with}
 \eqn{\sum_{p\in S} E_p \;\ge\; \eta \sum_{p} E_p}
 \eqn{\hat x = \mathcal F^{-1}\{X\cdot\mathbf 1_S\}}
 \end{card}\vspace{1mm}
@@ -609,7 +611,7 @@ Telea inpainting rebuilds the masked pixels from their neighbours. A mask over $
 \vspace*{\fill}
 {\color{accent}\rule{12mm}{1.5pt}}\\[4mm]
 {\headfont\fontsize{30}{34}\selectfont\color{ink}Live demo}\\[3mm]
-{\semifont\color{accenttext}then your questions}\\[4mm]
+% {\semifont\color{accenttext}then your questions}\\[4mm]
 {\color{accent}\rule{12mm}{1.5pt}}\\[8mm]
 \begin{tikzpicture}[node distance=3mm]
   \node[box] (a) {1\;\; upload a photo};
