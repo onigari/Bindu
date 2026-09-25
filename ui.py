@@ -6,6 +6,7 @@ import streamlit as st
 
 
 TOOL_DETAILS = {
+    "Noise addition and removal": ("Noise lab", "Add repeatable image noise, remove noise, and compare the results."),
     "Color channel analyzer and histogram": ("Channel analyzer", "Explore the colors behind your image. Compare RGB channels, histograms, and frequency content."),
     "Partial image reconstruction": ("Reconstruction", "Rebuild your image from selected color channels and see how each contributes."),
     "Color space comparison": ("Color spaces", "Look at the same image through RGB and YCbCr color spaces."),

@@ -23,6 +23,7 @@ from imgutil.color_spaces import rgb_to_ycbcr
 from imgutil.compression import compress_image, decompress_image
 from imgutil.lossless import compress_png, decompress_png, encode_bmp
 from imgutil.restoration import restore_photo
+from imgutil.noise import add_noise, remove_noise, rgb_pixels
 from imgutil.histograms import *
 from imgutil.frequency import *
 from imgutil.filtering import (
@@ -184,6 +185,7 @@ TOOLS = [
     "Lossless PNG compression",
     "Filtering",
     "White Scratch Removal",
+    "Noise addition and removal",
 ]
 
 
@@ -195,8 +197,8 @@ TOOLS = [
 page_comparisons = []
 
 
-def queue_comparison(before, after, *, after_label):
-    page_comparisons.append((before, after, after_label))
+def queue_comparison(before, after, *, after_label, before_label="Original"):
+    page_comparisons.append((before, after, before_label, after_label))
 
 
 def tool_ready(label, source, settings=None, key="run"):
@@ -722,6 +724,66 @@ def run_white_scratch_removal(img, channels) -> None:
     st.download_button("Download repaired PNG", png, "white_scratch_removed.png", "image/png", on_click="ignore")
 
 
+@st.cache_data(show_spinner=False, max_entries=3)
+def _noise_preview(img, mode, kind, amount, seed, method, size, strength):
+    original = rgb_pixels(img)
+    noisy = add_noise(original, kind, amount, seed) if mode != "Remove noise" else original
+    result = remove_noise(noisy, method, size, strength) if mode != "Add noise" else noisy
+    return original, noisy, result
+
+
+def run_noise_tool(img, channels):
+    mode = st.radio("Operation", ["Add noise", "Remove noise", "Add then remove"],
+                    horizontal=True, key="noise_mode")
+    kind, amount, seed = "Gaussian", 20.0, 42
+    method, size, strength = "Median", 3, 10.0
+    if mode != "Remove noise":
+        st.subheader("Add noise")
+        kind = st.selectbox("Noise type", ["Gaussian", "Salt and pepper"])
+        if kind == "Gaussian":
+            amount = st.slider("Noise standard deviation (pixel levels)", 0.0, 80.0, 20.0, 1.0)
+            st.caption("Adds independent brightness variation to each RGB channel.")
+        else:
+            amount = st.slider("Pixels affected (%)", 0.0, 50.0, 5.0, 0.5)
+            st.caption("Randomly replaces pixels with black or white; the percentage is approximate.")
+        seed = int(st.number_input("Random seed", min_value=0, max_value=2147483647, value=42, step=1))
+        st.caption("Keep the same seed for repeatable noise, or change it for a different pattern.")
+    if mode != "Add noise":
+        st.subheader("Remove noise")
+        method = st.selectbox("Denoising method", ["Median", "Gaussian blur", "Non-local means"])
+        if method == "Non-local means":
+            strength = st.slider("Denoising strength", 0.0, 30.0, 10.0, 1.0)
+        else:
+            size = st.select_slider("Filter width (pixels)", [3, 5, 7, 9, 11], value=3)
+        st.caption("Median filtering suits salt-and-pepper noise. Gaussian blur smooths noise and detail. Non-local means uses similar patches; stronger settings may soften texture.")
+    settings = (mode, kind, amount, seed, method, size, strength)
+    action = {"Add noise": "Add noise", "Remove noise": "Remove noise", "Add then remove": "Add and remove noise"}[mode]
+    if not tool_ready(action, img, settings, key="noise"):
+        return
+    try:
+        with st.spinner("Processing noise..."):
+            original, noisy, result = _noise_preview(img, *settings)
+    except (ValueError, cv2.error) as exc:
+        st.error(str(exc))
+        return
+    previews = [("Original", original)]
+    if mode == "Add then remove":
+        previews.append(("Added noise", noisy))
+    previews.append(("Added noise" if mode == "Add noise" else "Denoised", result))
+    for col, (label, pixels) in zip(st.columns(len(previews)), previews):
+        col.image(pixels, caption=label, width="stretch")
+    if mode == "Add then remove":
+        st.download_button("Download noisy PNG", _png_bytes(noisy), "noisy.png", "image/png", on_click="ignore")
+        queue_comparison(original, noisy, after_label="Added noise")
+        # Use the actual noisy input as the before image for removal.
+        queue_comparison(noisy, result, before_label="Noisy input", after_label="Denoised")
+        st.caption("In the removal comparison, the before image is the noisy input.")
+    else:
+        queue_comparison(original, result, after_label=previews[-1][0])
+    name = "noisy" if mode == "Add noise" else "denoised"
+    st.download_button(f"Download {name} PNG", _png_bytes(result), f"{name}.png", "image/png", on_click="ignore")
+
+
 TOOL_RUNNERS = {
     "Color channel analyzer and histogram": run_color_channel_analyzer,
     "Partial image reconstruction": run_partial_reconstruction,
@@ -730,6 +792,7 @@ TOOL_RUNNERS = {
     "Lossless PNG compression": run_lossless_compression,
     "Filtering": run_spatial_filtering,
     "White Scratch Removal": run_white_scratch_removal,
+    "Noise addition and removal": run_noise_tool,
 }
 
 
@@ -764,9 +827,9 @@ if img is not None or selected_tool in ("Compression and decompression", "Lossle
 if page_comparisons:
     st.divider()
     st.subheader("Before / after wipe comparison")
-    st.caption("Drag the divider to compare the original image with each result.")
-    for before, after, label in page_comparisons:
-        render_comparison(before, after, after_label=label)
+    st.caption("Drag the divider to compare each input image with its result.")
+    for before, after, before_label, label in page_comparisons:
+        render_comparison(before, after, before_label=before_label, after_label=label)
 
 
 st.sidebar.divider()

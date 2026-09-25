@@ -119,3 +119,16 @@ independent reference in tests, never by the custom codec.
 
 Format references: [PNG specification](https://www.w3.org/TR/png/) and
 [DEFLATE RFC 1951](https://www.rfc-editor.org/rfc/rfc1951).
+
+### Noise lab
+
+Choose **Noise lab** to add Gaussian or salt-and-pepper noise, remove existing
+noise, or add and remove noise in one run. A fixed random seed makes the added
+noise repeatable. Removal offers median filtering, Gaussian blur, and non-local
+means. Adjust the filter width or denoising strength, then press the action
+button to process. Input or setting changes require another click.
+
+The shared sidebar image stays unchanged. Download noisy or denoised PNGs and
+inspect the comparisons at the bottom. In combined mode the removal wipe
+compares the noisy input against the denoised result. Denoising can soften
+image detail and does not guarantee recovery of the original pixels.
