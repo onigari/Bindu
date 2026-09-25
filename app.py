@@ -14,6 +14,7 @@ from animated_histograms import (
     animated_histogram, animated_spectrum, animated_reconstruction,
     prepare_spectrum_channels,
 )
+from filter_animation import animate_filter
 from ui import apply_style, render_brand, render_header, TOOL_DETAILS
 
 from imgutil.core import *
@@ -28,7 +29,7 @@ from imgutil.filtering import (
     box_blur_channel, box_blur,
     laplacian_sharpen_channel, laplacian_sharpen,
     unsharp_mask_channel, unsharp_mask,
-    filter_channels, compare_perchannel_vs_merged,
+    filter_channels, compare_perchannel_vs_merged, filter_kernel,
 )
 
 
@@ -538,6 +539,56 @@ def run_lossless_compression(img, channels) -> None:
     st.download_button("Download lossless PNG", encoded, "lossless.png", "image/png", on_click="ignore")
 
 
+def render_kernel_visualizer(filter_name, params):
+    kernel = filter_kernel(filter_name, **params)
+    size = kernel.shape[0]
+    center = size // 2
+    st.subheader("Kernel visualizer")
+    st.caption("Updates with your settings. Click Apply filter below to process the image.")
+    left, right = st.columns([2, 1])
+    with left:
+        fig, ax = plt.subplots(figsize=(5, 4))
+        signed = bool(np.any(kernel < 0))
+        limit = float(np.max(np.abs(kernel))) or 1.0
+        plot = ax.imshow(kernel, cmap="RdBu_r" if signed else "viridis",
+                         vmin=-limit if signed else 0, vmax=limit, interpolation="nearest")
+        if size <= 9:
+            ax.set_xticks(range(size), labels=range(-center, center + 1))
+            ax.set_yticks(range(size), labels=range(-center, center + 1))
+            for row in range(size):
+                for col in range(size):
+                    rgba = plot.cmap(plot.norm(kernel[row, col]))
+                    brightness = .299 * rgba[0] + .587 * rgba[1] + .114 * rgba[2]
+                    ax.text(col, row, f"{kernel[row, col]:.3g}", ha="center", va="center",
+                            fontsize=7, color="black" if brightness > .55 else "white")
+        else:
+            ax.set_xticks([0, center, size - 1], labels=[-center, 0, center])
+            ax.set_yticks([0, center, size - 1], labels=[-center, 0, center])
+        ax.set_xlabel("Column offset from center")
+        ax.set_ylabel("Row offset from center")
+        ax.set_title(f"{filter_name}: {size} x {size}")
+        fig.colorbar(plot, ax=ax, label="Weight")
+        fig.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+    with right:
+        st.metric("Kernel size", f"{size} x {size}")
+        st.metric("Sum of weights", f"{kernel.sum():.6g}")
+        st.metric("Center weight", f"{kernel[center, center]:.6g}")
+        explanations = {
+            "Gaussian blur": "Nearby pixels contribute more than distant pixels. Kernel size is chosen automatically from sigma by OpenCV.",
+            "Box blur": "Every pixel in the neighborhood has the same weight; the output is their average.",
+            "Unsharp mask": "Effective kernel: (1 + amount) times the center impulse, minus amount times the Gaussian kernel.",
+            "Laplacian sharpen": "Effective kernel: center impulse minus scale times the Laplacian kernel. Size 1 uses a 3 x 3 Laplacian stencil.",
+        }
+        st.write(explanations[filter_name])
+        st.caption("The center cell aligns with the output pixel. The same weights are used for each selected channel. Image edges use OpenCV's reflected border handling.")
+    with st.expander("All kernel weights"):
+        st.dataframe(kernel, width="stretch")
+        st.download_button("Download kernel CSV", "\n".join(",".join(f"{value:.17g}" for value in row) for row in kernel),
+                           "filter_kernel.csv", "text/csv", on_click="ignore")
+
+
 def run_spatial_filtering(img: np.ndarray, channels: dict) -> None:
     st.image(np.clip(img, 0, 255).astype(np.uint8), caption="Original", width=400)
 
@@ -557,8 +608,12 @@ def run_spatial_filtering(img: np.ndarray, channels: dict) -> None:
             else:
                 kwargs[param["name"]] = st.slider(param["label"], param["min"], param["max"], param["default"], step=param["step"],)
 
+    render_kernel_visualizer(filter_name, kwargs)
+
     if not tool_ready("Apply filter", img, (filter_name, kwargs)):
         return
+
+    animate_filter(img, filter_kernel(filter_name, **kwargs))
 
     chan_fn = config["channel_fn"]
     merged_fn = config["merged_fn"]

@@ -119,3 +119,38 @@ def compare_perchannel_vs_merged(img: np.ndarray, channels: dict, filter_fn, **k
         "mean_abs_diff": mean_abs_diff,
         "matches": max_abs_diff < 1e-8,
     }
+
+
+def filter_kernel(filter_name: str, **params) -> np.ndarray:
+    """Return the effective 2D weights of the app's float64 linear filters.
+
+    Probe GaussianBlur with an isolated impulse so automatic support and
+    coefficients come from the installed OpenCV implementation itself.
+    """
+    if filter_name in ("Gaussian blur", "Unsharp mask"):
+        sigma = float(params.get("sigma", 2.0))
+        ksize = int(params.get("ksize", 0))
+        radius = max(ksize, int(np.ceil(8 * sigma)) + 8)
+        impulse = np.zeros((1, 2 * radius + 1), dtype=np.float64)
+        impulse[0, radius] = 1
+        response = cv2.GaussianBlur(impulse, (ksize, 1), sigmaX=sigma)[0]
+        support = np.flatnonzero(response)
+        weights = response[support[0]:support[-1] + 1]
+        kernel = np.outer(weights, weights)
+        if filter_name == "Unsharp mask":
+            amount = float(params.get("amount", 1.0))
+            kernel *= -amount
+            kernel[kernel.shape[0] // 2, kernel.shape[1] // 2] += 1 + amount
+        return kernel
+    if filter_name == "Box blur":
+        size = int(params.get("ksize", 5))
+        return np.full((size, size), 1.0 / (size * size))
+    if filter_name == "Laplacian sharpen":
+        size = int(params.get("ksize", 3))
+        support = max(3, size)
+        impulse = np.zeros((support * 2 + 1, support * 2 + 1), dtype=np.float64)
+        impulse[support, support] = 1
+        response = laplacian_sharpen_channel(impulse, ksize=size, scale=params.get("scale", 1.0))
+        radius = support // 2
+        return response[support-radius:support+radius+1, support-radius:support+radius+1]
+    raise ValueError(f"Unknown filter: {filter_name}")
