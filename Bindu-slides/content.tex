@@ -371,6 +371,28 @@ $\Rightarrow$ one kernel: $h=(1+a)\,\delta - a\,G_\sigma$
 \end{columns}
 \end{frame}
 
+% ------------------------------------------------------------------ 8b  kernels of the filter tool
+% figures: python make_kernels.py  (uses imgutil.filtering.filter_kernel)
+\newcommand{\kcol}[4]{%
+  \begin{minipage}[t]{0.24\textwidth}\centering
+  {\semifont\fontsize{7.5}{9}\selectfont\color{accenttext}#1}\\[-0.2mm]
+  \lbl{#2}\\[-0.4mm]
+  {\fontsize{6.5}{8}\selectfont\color{muted}#4}\\[1mm]
+  \plot{0.6\linewidth}{kern_#3.pdf}\\[1mm]
+  \img{0.6\linewidth}{figs/img/kern_out_#3.jpg}
+  \end{minipage}}
+\begin{frame}{One filter tool, four kernels}
+\vspace{2mm}
+\centering
+\kcol{Box blur}{$5\times5$}{box}{flat average}\hfill
+\kcol{Gaussian blur}{$25\times25$, $\sigma=3$}{gauss}{smooth fall-off}\hfill
+\kcol{Laplacian sharpen}{$3\times3$, scale $0.8$}{lap}{$\delta-0.8\,\nabla^2$}\hfill
+\kcol{Unsharp mask}{$17\times17$, $\sigma=2$, $a=1.5$}{unsharp}{$(1+a)\,\delta-a\,G_\sigma$}\\[2.5mm]
+\capt{Weights from \texttt{filtering.filter\_kernel()}: exact match to the tool, each sums to 1. \quad
+\tikz[baseline=-0.1ex]\fill[accent] (0,0) rectangle (1.6mm,1.6mm);~positive \;
+\tikz[baseline=-0.1ex]\fill[Bc] (0,0) rectangle (1.6mm,1.6mm);~negative}
+\end{frame}
+
 % ------------------------------------------------------------------ 9  (P, 0:25)
 \begin{frame}{Denoising: the right filter depends on the noise}
 \begin{columns}[T,onlytextwidth]
