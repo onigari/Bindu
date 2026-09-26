@@ -36,7 +36,6 @@ def render_brand():
 
 def render_header(tool):
     title, description = TOOL_DETAILS[tool]
-    st.markdown('<div class="eyebrow">BINDU STUDIO &nbsp; / &nbsp; IMAGE TOOLS</div>', unsafe_allow_html=True)
     st.title(title)
     st.markdown(f'<p class="page-description">{description}</p>', unsafe_allow_html=True)
 

@@ -8,7 +8,7 @@ class RuntimeHistogram {
         for (const [name, encoded] of Object.entries(config.pixels)) {
             const bytes = atob(encoded);
             const values = new Uint16Array(bytes.length / 2);
-            for (let i = 0; i < values.length; i++) values[i] = bytes.charCodeAt(i*2) | (bytes.charCodeAt(i*2+1) << 8);
+            for (let i = 0; i < values.length; i++) values[i] = bytes.charCodeAt(i * 2) | (bytes.charCodeAt(i * 2 + 1) << 8);
             this.pixels[name] = values; this.counts[name] = new Float64Array(256);
         }
         if (this.combined) this.counts.Total = new Float64Array(256);
@@ -37,10 +37,10 @@ class RuntimeHistogram {
             tick.textContent = Math.round(Number(tick.dataset.countTick) * maximum).toLocaleString();
         });
         for (const [name, counts] of Object.entries(this.counts)) {
-            const points = Array.from(counts, (value, i) => (58+i/255*548).toFixed(2)+','+(244-value/maximum*202).toFixed(2));
-            const curve = 'M '+points.join(' L ');
-            document.getElementById('curve-'+name).setAttribute('d', curve);
-            document.getElementById('fill-'+name).setAttribute('d', curve+' L 606,244 L 58,244 Z');
+            const points = Array.from(counts, (value, i) => (58 + i / 255 * 548).toFixed(2) + ',' + (244 - value / maximum * 202).toFixed(2));
+            const curve = 'M ' + points.join(' L ');
+            document.getElementById('curve-' + name).setAttribute('d', curve);
+            document.getElementById('fill-' + name).setAttribute('d', curve + ' L 606,244 L 58,244 Z');
         }
     }
 }

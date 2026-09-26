@@ -247,33 +247,6 @@ $x_c[m,n]\in[0,255]$
 \end{columns}
 \end{frame}
 
-% ------------------------------------------------------------------ 5  (S, 0:20)
-\begin{frame}{Histograms: the statistics of each channel}
-\vspace{2mm}
-\begin{columns}[T,onlytextwidth]
-\column{0.42\textwidth}
-\begin{card}{Histogram of channel $\textit{\textcolor{accenttext}{c}}$}
-\eqn{h_c[k] = \#\{(m,n) : x_c[m,n] = k\}}
-\eqn{p_c[k] = \frac{h_c[k]}{H\,W},\qquad \sum_{k=0}^{255} p_c[k] = 1}
-\end{card}
-\vspace{1.5mm}
-\begin{hotcard}{Perceived Luminance}
-  \vspace{0.3em}
-\eqn{Y = \begin{bmatrix} 0.299 & 0.587 & 0.114 \end{bmatrix}\begin{bmatrix} R \\ G \\ B \end{bmatrix}}
-\vspace{0.3em}
-{\scriptsize $Y$ uses the perceived luminance, which is closer to what the eye sees.}
-\end{hotcard}
-\column{0.55\textwidth}
-\centering
-\plot{0.86\linewidth}{hist.pdf}\\[1.5mm]
-\begin{minipage}[c]{0.3\linewidth}\centering
-\img{\linewidth}{figs/img/lakeside_sample.jpg}
-\end{minipage}\hfill
-\begin{minipage}[c]{0.66\linewidth}\raggedright
-\capt{Lakeside sample (left). Blue sits highest (sky and water) and red lowest. The dashed curve is $Y$: narrower, because the channels are averaged inside every pixel.}
-\end{minipage}
-\end{columns}
-\end{frame}
 
 % ------------------------------------------------------------------ 6  (P, 0:25)
 \begin{frame}{The 2D DFT: which frequencies build the picture}
@@ -307,6 +280,35 @@ $x_c[m,n]\in[0,255]$
 \begin{minipage}{0.85\linewidth}\centering\capt{Energy crowds at the centre (low frequencies).}\end{minipage}
 \end{columns}
 \end{frame}
+
+
+\begin{frame}{Histograms: the statistics of each channel}
+\vspace{2mm}
+\begin{columns}[T,onlytextwidth]
+\column{0.42\textwidth}
+\begin{card}{Histogram of channel $\textit{\textcolor{accenttext}{c}}$}
+\eqn{h_c[k] = \#\{(m,n) : x_c[m,n] = k\}}
+\eqn{p_c[k] = \frac{h_c[k]}{H\,W},\qquad \sum_{k=0}^{255} p_c[k] = 1}
+\end{card}
+\vspace{1.5mm}
+\begin{hotcard}{Perceived Luminance}
+  \vspace{0.3em}
+\eqn{Y = \begin{bmatrix} 0.299 & 0.587 & 0.114 \end{bmatrix}\begin{bmatrix} R \\ G \\ B \end{bmatrix}}
+\vspace{0.3em}
+{\scriptsize $Y$ uses the perceived luminance, which is closer to what the eye sees.}
+\end{hotcard}
+\column{0.55\textwidth}
+\centering
+\plot{0.86\linewidth}{hist.pdf}\\[1.5mm]
+\begin{minipage}[c]{0.3\linewidth}\centering
+\img{\linewidth}{figs/img/lakeside_sample.jpg}
+\end{minipage}\hfill
+\begin{minipage}[c]{0.66\linewidth}\raggedright
+\capt{Lakeside sample (left). Blue sits highest (sky and water) and red lowest. The dashed curve is $Y$: narrower, because the channels are averaged inside every pixel.}
+\end{minipage}
+\end{columns}
+\end{frame}
+
 
 % ------------------------------------------------------------------ 7  (P, 0:20)
 \begin{frame}{Colour space: RGB $\rightarrow$ YCbCr is a change of basis}
