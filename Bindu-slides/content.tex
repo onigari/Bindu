@@ -557,7 +557,7 @@ Decoded pixels & \hl{bit-exact}\\
 \begin{frame}{Restoration: find the scratches, then fill them}
 \begin{columns}[T,onlytextwidth]
 \column{0.44\textwidth}
-\begin{card}{Grey-scale morphology, $b$: $11\times11$ square}
+\begin{card}{Grey-scale morphology}
 \eqn{\begin{aligned}
 f\ominus b &= \min_{b} f &&\text{erosion}\\
 f\oplus b &= \max_{b} f &&\text{dilation}\\
@@ -566,8 +566,8 @@ T(f) &= f - f\circ b &&\text{white top-hat}
 \end{aligned}}
 \end{card}\vspace{1mm}
 \begin{hotcard}{Mask, then repair}
-$M = \big[\,T(f)\ge\tau\,\big]\oplus (3\times3)$, \quad $\tau=30$\\[0.5mm]
-Telea inpainting rebuilds the masked pixels from their neighbours. A mask over $10\%$ of the image is refused.
+$M = \big[\,T(f)\ge\tau\,\big]\oplus (3\times3)$, \quad $\tau=30$\\[0.8mm]
+{\scriptsize Telea inpainting rebuilds the masked pixels from their neighbours. A mask over $10\%$ of the image is refused.}
 \end{hotcard}
 \column{0.53\textwidth}
 \centering
@@ -591,61 +591,65 @@ Telea inpainting rebuilds the masked pixels from their neighbours. A mask over $
 \end{frame}
 
 % ------------------------------------------------------------------ 13  (P, 0:20)
-\section{Results}
-\begin{frame}{What Bindu delivers}
-\vspace{2mm}
-\begin{columns}[T,onlytextwidth]
-\column{0.235\textwidth}
-\begin{card}[height=21mm]{Decorrelation}
-{\headfont\Large\color{accenttext}98.9\%}\\[0.5mm]of the variation moves into $Y$ after one $3\times3$ matrix.
-\end{card}
-\column{0.235\textwidth}
-\begin{card}[height=21mm]{Fourier pruning}
-{\headfont\Large\color{accenttext}0.32\%}\\[0.5mm]of the coefficients hold $99\%$ of the energy (26.6 dB).
-\end{card}
-\column{0.235\textwidth}
-\begin{card}[height=21mm]{Wavelet codec}
-{\headfont\Large\color{accenttext}1.71$\times$}\\[0.5mm]smaller than raw RGB, and decoded bit for bit.
-\end{card}
-\column{0.235\textwidth}
-\begin{card}[height=21mm]{Restoration}
-{\headfont\Large\color{accenttext}1.6\%}\\[0.5mm]of the pixels flagged and inpainted on the scratched portrait.
-\end{card}
-\end{columns}
-\vspace{3mm}
-\begin{columns}[c,onlytextwidth]
-\column{0.5\textwidth}
-\centering
-\begin{tikzpicture}[font=\fontsize{6.5}{7.5}\selectfont]
-  \node[hot, minimum width=17mm, minimum height=8mm, inner sep=1mm] (c) {\semifont Signals \&\\\semifont Systems};
-  \foreach \a/\t in {90/Convolution, 25/Fourier analysis, -25/Decorrelation, -90/Wavelets, -155/Entropy, 155/Rate vs.\ distortion}{
-    \node[box, minimum height=5.5mm, inner sep=1mm] (n\a) at (\a:26mm and 12mm) {\t};
-    \draw[muted, line width=0.5pt] (c) -- (n\a);}
-\end{tikzpicture}
-\column{0.46\textwidth}
-\begin{itemize}\setlength\itemsep{1.2mm}\footnotesize
-  \item \hl{8 tools}: analysis, reconstruction, colour spaces, filters, noise lab, lossy and lossless codecs, scratch repair.
-  \item Every result is \hl{measured}: PSNR, MSE, file sizes, entropy and exact-match checks.
-  \item Limits: our pure-Python codec is slower than zlib, and repair masks are heuristic.
-\end{itemize}
-\end{columns}
-\end{frame}
+% \section{Results}
+% \begin{frame}{What Bindu delivers}
+% \vspace{2mm}
+% \begin{columns}[T,onlytextwidth]
+% \column{0.235\textwidth}
+% \begin{card}[height=21mm]{Decorrelation}
+% {\headfont\Large\color{accenttext}98.9\%}\\[0.5mm]of the variation moves into $Y$ after one $3\times3$ matrix.
+% \end{card}
+% \column{0.235\textwidth}
+% \begin{card}[height=21mm]{Fourier pruning}
+% {\headfont\Large\color{accenttext}0.32\%}\\[0.5mm]of the coefficients hold $99\%$ of the energy (26.6 dB).
+% \end{card}
+% \column{0.235\textwidth}
+% \begin{card}[height=21mm]{Wavelet codec}
+% {\headfont\Large\color{accenttext}1.71$\times$}\\[0.5mm]smaller than raw RGB, and decoded bit for bit.
+% \end{card}
+% \column{0.235\textwidth}
+% \begin{card}[height=21mm]{Restoration}
+% {\headfont\Large\color{accenttext}1.6\%}\\[0.5mm]of the pixels flagged and inpainted on the scratched portrait.
+% \end{card}
+% \end{columns}
+% \vspace{3mm}
+% \begin{columns}[c,onlytextwidth]
+% \column{0.5\textwidth}
+% \centering
+% \begin{tikzpicture}[font=\fontsize{6.5}{7.5}\selectfont]
+%   \node[hot, minimum width=17mm, minimum height=8mm, inner sep=1mm] (c) {\semifont Signals \&\\\semifont Systems};
+%   \foreach \a/\t in {90/Convolution, 25/Fourier analysis, -25/Decorrelation, -90/Wavelets, -155/Entropy, 155/Rate vs.\ distortion}{
+%     \node[box, minimum height=5.5mm, inner sep=1mm] (n\a) at (\a:26mm and 12mm) {\t};
+%     \draw[muted, line width=0.5pt] (c) -- (n\a);}
+% \end{tikzpicture}
+% \column{0.46\textwidth}
+% \begin{itemize}\setlength\itemsep{1.2mm}\footnotesize
+%   \item \hl{8 tools}: analysis, reconstruction, colour spaces, filters, noise lab, lossy and lossless codecs, scratch repair.
+%   \item Every result is \hl{measured}: PSNR, MSE, file sizes, entropy and exact-match checks.
+%   \item Limits: our pure-Python codec is slower than zlib, and repair masks are heuristic.
+% \end{itemize}
+% \end{columns}
+% \end{frame}
 
 % ------------------------------------------------------------------ 14  (both, demo)
 \section{Demo}
 \begin{frame}[plain]
-\centering
 \vspace*{\fill}
+\makebox[\textwidth][c]{%
+\begin{minipage}{0.9\textwidth}
+\centering
 {\color{accent}\rule{12mm}{1.5pt}}\\[4mm]
 {\headfont\fontsize{30}{34}\selectfont\color{ink}Live demo}\\[3mm]
 % {\semifont\color{accenttext}then your questions}\\[4mm]
 {\color{accent}\rule{12mm}{1.5pt}}\\[8mm]
-\begin{tikzpicture}[node distance=3mm]
-  \node[box] (a) {1\;\; upload a photo};
-  \node[box, right=of a] (b) {2\;\; spectra \& histograms};
-  \node[box, right=of b] (c) {3\;\; compress / decompress};
-  \node[box, right=of c] (d) {4\;\; repair scratches};
-\end{tikzpicture}\\[10mm]
-{\small\color{muted}Sajiid Jawad Talukder (2305041) \quad$\cdot$\quad Proteek Rosul (2305042)}
+% \begin{tikzpicture}[node distance=3mm]
+%   \node[box] (a) {1\;\; upload a photo};
+%   \node[box, right=of a] (b) {2\;\; spectra \& histograms};
+%   \node[box, right=of b] (c) {3\;\; compress / decompress};
+%   \node[box, right=of c] (d) {4\;\; repair scratches};
+% \end{tikzpicture}\\[10mm]
+% {\small\color{muted}Sajiid Jawad Talukder (2305041) \quad$\cdot$\quad Proteek Rosul (2305042)}
+\end{minipage}%
+}
 \vspace*{\fill}
 \end{frame}
