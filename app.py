@@ -178,8 +178,8 @@ TOOLS = [
     "Color channel analyzer and histogram",
     "Partial image reconstruction",
     "Color space comparison",
-    "Compression and decompression",
-    "Lossless wavelet compression",
+    "Lossy compression",
+    "Lossless compression",
     "Filtering",
     "White Scratch Removal",
     "Noise addition and removal",
@@ -462,29 +462,7 @@ def compare_reference(reference, restored):
 
 
 def run_compression(img, channels) -> None:
-    st.subheader("Compression and Decompression")
-    mode = st.radio("Operation", ["Compress", "Decompress"], horizontal=True)
-    if mode == "Decompress":
-        st.caption("Upload a Fourier .npz file downloaded from this tool. The original image is not required.")
-        with st.sidebar:
-            st.subheader("Your compressed image")
-            uploaded = st.file_uploader("Compressed image", type=["npz"], key="compressed_image")
-            reference = st.file_uploader("Original image for comparison (optional)", type=["png", "jpg", "jpeg", "bmp"], key="fourier_reference")
-        if uploaded is None:
-            st.session_state.pop(f"approved_{selected_tool}_decompress", None)
-            return
-        if not tool_ready("Decompress image", uploaded.getvalue(), key="decompress"):
-            return
-        try:
-            restored = decompress_image(uploaded.getvalue())
-        except ValueError as exc:
-            st.error(str(exc))
-            return
-        st.image(restored, caption="Decompressed image", width="stretch")
-        compare_reference(reference, restored)
-        st.caption(f"{restored.shape[1]} × {restored.shape[0]} pixels")
-        st.download_button("Download decompressed PNG", _png_bytes(restored), "decompressed.png", "image/png", on_click="ignore")
-        return
+    st.subheader("Lossy Fourier Compression")
 
     if img is None:
         return
@@ -530,7 +508,7 @@ def run_compression(img, channels) -> None:
 
 
 def run_lossless_compression(img, channels) -> None:
-    st.subheader("Lossless Wavelet Compression and Decompression")
+    st.subheader("Lossless Compression and Decompression")
     mode = st.radio("Operation", ["Compress", "Decompress"], horizontal=True, key="lossless_mode")
     if mode == "Decompress":
         st.caption("Upload a wavelet .iwv archive from this tool, or a legacy 8-bit RGB PNG. No original image is needed.")
@@ -802,8 +780,8 @@ TOOL_RUNNERS = {
     "Color channel analyzer and histogram": run_color_channel_analyzer,
     "Partial image reconstruction": run_partial_reconstruction,
     "Color space comparison": run_color_space_comparison,
-    "Compression and decompression": run_compression,
-    "Lossless wavelet compression": run_lossless_compression,
+    "Lossy compression": run_compression,
+    "Lossless compression": run_lossless_compression,
     "Filtering": run_spatial_filtering,
     "White Scratch Removal": run_white_scratch_removal,
     "Noise addition and removal": run_noise_tool,
@@ -831,10 +809,10 @@ if st.session_state.get("active_tool") != selected_tool:
             del st.session_state[key]
     st.session_state["active_tool"] = selected_tool
 
-# Keep the shared uploader mounted, including in decompression mode, so
-# Streamlit retains its file when navigating between tools.
+# Keep the shared uploader mounted so Streamlit retains its file when
+# navigating between tools.
 img = image_picker(selected_tool)
-if img is not None or selected_tool in ("Compression and decompression", "Lossless wavelet compression"):
+if img is not None or selected_tool == "Lossless compression":
     TOOL_RUNNERS[selected_tool](img, None)
 
 

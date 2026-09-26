@@ -45,7 +45,7 @@ with neutral chroma at 128. Mean removal is enabled by default for the spectra
 to highlight spatial detail rather than constant channel offsets. This tool
 does not perform compression or chroma subsampling.
 
-Select **Compression and decompression** and choose **Compress**. Set the energy
+Select **Lossy compression**. Set the energy
 retention target per RGB channel and click **Compress and preview**. The tool
 ranks Fourier conjugate pairs by energy, retains the strongest pairs (always
 keeping the mean/DC component), and saves their indices and complex coefficients
@@ -53,18 +53,17 @@ in a compressed `.npz` archive. Previews compare the original against the actual
 decoded archive, with MSE, PSNR, an amplified difference image, and file sizes.
 Input is rounded to 8-bit RGB; coefficients are stored as complex64.
 
-Download the compressed archive, then choose **Decompress** and upload it to
-restore the image and download a PNG. No original image is needed for decoding.
-Pruning is lossy: decompression cannot restore discarded detail. At 100% energy,
-all Fourier pairs are retained, subject to floating-point storage precision.
+The tool provides a reconstructed PNG preview and download immediately after
+compression. Pruning is lossy: discarded detail cannot be restored. At 100%
+energy, all Fourier pairs are retained, subject to floating-point storage precision.
 Energy retention is not a compression ratio; archives may exceed PNG/JPEG or
 even raw RGB size. The displayed ratio compares raw 8-bit RGB bytes with archive
 bytes, and a separately encoded original PNG size is also shown. Images are
 limited to 4 million pixels.
 
-### Lossless wavelet compression and decompression
+### Lossless compression and decompression
 
-Select **Lossless wavelet compression** in the sidebar:
+Select **Lossless compression** in the sidebar:
 
 1. Choose **Compress**, upload an image or select a sample, and set wavelet
    decomposition levels (1–8) and compression effort (0–9). Every setting
